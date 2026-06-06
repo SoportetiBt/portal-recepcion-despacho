@@ -501,11 +501,22 @@ table.files-table tr:last-child td{border-bottom:none}
 </div>
 
 <!-- ══════════ TAB: CARGAR ARCHIVOS ══════════ -->
-<div class="tab-content" id="tab-cargar">
+<div class="tab-content" id="tab-cargar" style="position:relative">
 
   <!-- AUTH PANEL -->
   <div id="authPanel" style="margin-bottom:20px"></div>
 
+  <!-- LOCK OVERLAY (visible cuando no hay sesión) -->
+  <div id="cargar-overlay" style="display:flex;position:absolute;inset:0;z-index:10;align-items:center;justify-content:center;background:rgba(255,255,255,0.5);border-radius:10px;pointer-events:none">
+    <div style="background:#fff;border:2px solid #dee2e6;border-radius:12px;padding:32px 40px;text-align:center;box-shadow:0 8px 32px rgba(0,0,0,0.1)">
+      <div style="font-size:40px;margin-bottom:12px">🔒</div>
+      <div style="font-size:16px;font-weight:700;margin-bottom:6px">Acceso restringido</div>
+      <div style="font-size:13px;color:#6c757d">Iniciá sesión arriba para cargar y gestionar archivos</div>
+    </div>
+  </div>
+
+  <!-- Contenido bloqueado hasta login -->
+  <div id="cargar-lockable" style="position:relative">
   <div style="margin-bottom:20px">
     <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#6c757d;margin-bottom:12px;display:flex;align-items:center;gap:8px">Subir nuevo archivo <span style="flex:1;height:1px;background:#e2e6ea;display:block"></span></div>
     <div class="upload-grid">
@@ -567,6 +578,8 @@ table.files-table tr:last-child td{border-bottom:none}
     </table>
   </div>
 </div>
+
+  </div><!-- /cargar-lockable -->
 
 </div><!-- /content -->
 
@@ -675,6 +688,21 @@ function save(s){
 // ════════════════════════════════════════════
 // AUTH UI
 // ════════════════════════════════════════════
+function lockCargarContent(locked){
+  const content=document.getElementById('cargar-lockable');
+  const overlay=document.getElementById('cargar-overlay');
+  if(!content||!overlay)return;
+  if(locked){
+    content.style.opacity='0.35';
+    content.style.pointerEvents='none';
+    overlay.style.display='flex';
+  }else{
+    content.style.opacity='1';
+    content.style.pointerEvents='';
+    overlay.style.display='none';
+  }
+}
+
 function updateAuthUI(){
   const panel=document.getElementById('authPanel');
   if(!panel)return;
@@ -684,6 +712,7 @@ function updateAuthUI(){
         <span style="font-size:13px"><strong>✓ Sesión activa:</strong> ${currentUser()} — podés cargar y guardar archivos</span>
         <button class="btn btn-outline btn-sm" onclick="sbSignOut()">Cerrar sesión</button>
       </div>`;
+    lockCargarContent(false);
   }else{
     panel.innerHTML=`
       <div style="background:#fff7ed;border:1px solid #fed7aa;padding:14px 16px;border-radius:8px">
@@ -700,6 +729,7 @@ function updateAuthUI(){
         <div id="sbError" style="color:#dc2626;margin-top:8px;font-size:12px;display:none"></div>
         <div style="font-size:11px;color:#6c757d;margin-top:8px">Solo el administrador puede cargar archivos. El equipo ve los datos sincronizados automáticamente.</div>
       </div>`;
+    lockCargarContent(true);
   }
 }
 
@@ -959,6 +989,8 @@ function renderSummaryCards(){
     const desTotal=desRows.length;
     const desEnt=desRows.filter(r=>r.estado==='Entregado').length;
     const desNo=desRows.filter(r=>r.estado==='No entregado').length;
+    const desPar=desRows.filter(r=>r.estado==='Entrega parcial').length;
+    const desPen=desRows.filter(r=>!['Entregado','No entregado','Entrega parcial'].includes(r.estado)).length;
     const desPct=desTotal>0?Math.round(desEnt/desTotal*100):0;
     el.innerHTML=hdr+`
       ${recRows.length?`
@@ -973,13 +1005,13 @@ function renderSummaryCards(){
       <div class="sc-divider"></div>
       <div class="sc-section-lbl">Despacho última milla</div>
       <div class="sc-kpis">
-        <div><div class="sc-kpi-val">${fmtNum(desTotal)}</div><div class="sc-kpi-lbl">Órdenes</div></div>
         <div><div class="sc-kpi-val kv-green">${fmtNum(desEnt)}</div><div class="sc-kpi-lbl">Entregadas</div></div>
         <div><div class="sc-kpi-val kv-red">${fmtNum(desNo)}</div><div class="sc-kpi-lbl">No entregadas</div></div>
-        <div><div class="sc-kpi-val kv-yellow">${fmtNum(desTotal-desEnt-desNo)}</div><div class="sc-kpi-lbl">Pendientes</div></div>
+        <div><div class="sc-kpi-val" style="color:#f97316;font-size:18px">${fmtNum(desPar)}</div><div class="sc-kpi-lbl">Ent. parcial</div></div>
+        <div><div class="sc-kpi-val" style="color:#9ca3af;font-size:18px">${fmtNum(desPen)}</div><div class="sc-kpi-lbl">Pendiente</div></div>
       </div>
       <div class="sc-bar"><div class="sc-bar-fill" style="width:${desPct}%;background:${desPct>=90?'#16a34a':desPct>=70?'#d97706':'#f97316'}"></div></div>
-      <div class="sc-bar-meta"><span>Efectividad despacho</span><span style="font-weight:700;color:${desPct>=90?'#16a34a':desPct>=70?'#d97706':'#dc2626'}">${desPct}%</span></div>`
+      <div class="sc-bar-meta"><span style="font-weight:600">${fmtNum(desTotal)} órdenes · efectividad</span><span style="font-weight:700;color:${desPct>=90?'#16a34a':desPct>=70?'#d97706':'#dc2626'}">${desPct}%</span></div>`
       :'<div class="sc-divider"></div><div class="sc-section-lbl" style="color:#adb5bd">Sin datos despacho</div>'}`;
   });
 }
