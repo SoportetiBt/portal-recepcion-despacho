@@ -221,6 +221,7 @@ table.files-table tr:last-child td{border-bottom:none}
     </div>
   </div>
   <div class="header-right">
+    <div class="header-info" id="nav-date" style="margin-right:8px"><span>—</span></div>
     <div class="header-info" id="header-info">Sin archivos cargados</div>
     <button class="btn btn-outline" onclick="exportJSON()">Exportar JSON</button>
     <button class="btn btn-orange" onclick="switchToCargar()">+ Cargar</button>
@@ -501,6 +502,10 @@ table.files-table tr:last-child td{border-bottom:none}
 
 <!-- ══════════ TAB: CARGAR ARCHIVOS ══════════ -->
 <div class="tab-content" id="tab-cargar">
+
+  <!-- AUTH PANEL -->
+  <div id="authPanel" style="margin-bottom:20px"></div>
+
   <div style="margin-bottom:20px">
     <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#6c757d;margin-bottom:12px;display:flex;align-items:center;gap:8px">Subir nuevo archivo <span style="flex:1;height:1px;background:#e2e6ea;display:block"></span></div>
     <div class="upload-grid">
@@ -594,143 +599,218 @@ table.files-table tr:last-child td{border-bottom:none}
 </div>
 
 <script>
-
 // ════════════════════════════════════════════
-// CONSTANTS
+// CONSTANTS & STORAGE
 // ════════════════════════════════════════════
 const SK = 'bt_recdes_v6';
-// Almacenamiento en RAM (siempre funciona) + localStorage como backup opcional
 let MEM_STORE = {files:[]};
 let LS_AVAILABLE = false;
-const NODES = ['C_RM','C_VIÑA','R_VIÑA','R_SERENA'];
-const TIPO_LBL = {troncal:'Troncal Canon', um:'Último Metro Canon', rosen:'Rosen Preliq.'};
-const TIPO_CSS = {troncal:'b-tipo-troncal', um:'b-tipo-um', rosen:'b-tipo-rosen'};
-const ESTADO_CSS = {'Entregado':'b-ent','No entregado':'b-no','Entrega parcial':'b-par','Bodega RM':'b-bod','Ingresado al sistema':'b-pen'};
-const NODO_CSS = {'C_RM':'b-crm','C_VIÑA':'b-cvina','R_VIÑA':'b-rvina','R_SERENA':'b-rser'};
-const CHART_ESTADOS = ['Entregado','No entregado','Entrega parcial','Ingresado al sistema'];
-const CHART_COLORS  = ['#16a34a','#dc2626','#d97706','#9ca3af'];
 
-// Sort state per table
-const sortState = {rec:{col:-1,dir:1}, des:{col:-1,dir:1}, all:{col:-1,dir:1}};
+// ── SUPABASE ──────────────────────────────────
+const SUPABASE_URL = 'https://uxyxdfbmfviofwdxmqsq.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_SI6kt_9ioxvIg3VaZOqXdA_zrIry6pR';
+const SB_SESSION_KEY = 'portal.recdes.session';
+let SUPABASE_SESSION = null;
 
-// Active global filters
-const gf = {fecha:'', operacion:'', nodo:'', estado:''};
+function sbHeaders(useToken=false){
+  const token=(useToken&&SUPABASE_SESSION)?SUPABASE_SESSION.access_token:SUPABASE_KEY;
+  return{'apikey':SUPABASE_KEY,'Authorization':'Bearer '+token,'Content-Type':'application/json'};
+}
+function isAuth(){return!!(SUPABASE_SESSION&&SUPABASE_SESSION.access_token);}
+function currentUser(){return(SUPABASE_SESSION&&SUPABASE_SESSION.user&&SUPABASE_SESSION.user.email)||'';}
+function persistSbSession(){try{if(SUPABASE_SESSION)localStorage.setItem(SB_SESSION_KEY,JSON.stringify(SUPABASE_SESSION));else localStorage.removeItem(SB_SESSION_KEY);}catch(e){}}
 
-// Chart instances
-const charts = {};
+async function sbSignIn(email,password){
+  const r=await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=password`,{
+    method:'POST',headers:{'apikey':SUPABASE_KEY,'Content-Type':'application/json'},
+    body:JSON.stringify({email,password})
+  });
+  const data=await r.json();
+  if(!r.ok)throw new Error(data.error_description||data.msg||'Credenciales incorrectas');
+  SUPABASE_SESSION=data;persistSbSession();
+}
+async function sbSignOut(){
+  try{await fetch(`${SUPABASE_URL}/auth/v1/logout`,{method:'POST',headers:sbHeaders(true)});}catch(e){}
+  SUPABASE_SESSION=null;persistSbSession();updateAuthUI();
+}
+async function loadSnapshot(){
+  try{
+    const r=await fetch(`${SUPABASE_URL}/rest/v1/portal_recepcion_snapshot?id=eq.1&select=data`,{headers:sbHeaders(false)});
+    if(!r.ok)return null;
+    const rows=await r.json();
+    if(!rows.length||!rows[0].data)return null;
+    return rows[0].data;
+  }catch(e){return null;}
+}
+async function saveSnapshot(data){
+  if(!isAuth())return;
+  await fetch(`${SUPABASE_URL}/rest/v1/portal_recepcion_snapshot?id=eq.1`,{
+    method:'PATCH',
+    headers:{...sbHeaders(true),'Prefer':'return=minimal'},
+    body:JSON.stringify({data,updated_by:currentUser(),updated_at:new Date().toISOString()})
+  });
+}
+
+const NODES=['C_RM','C_VIÑA','R_VIÑA','R_SERENA'];
+const TIPO_LBL={troncal:'Troncal Canon',um:'Último Metro Canon',rosen:'Rosen Preliq.'};
+const TIPO_CSS={troncal:'b-tipo-troncal',um:'b-tipo-um',rosen:'b-tipo-rosen'};
+const ESTADO_CSS={'Entregado':'b-ent','No entregado':'b-no','Entrega parcial':'b-par','Bodega RM':'b-bod','Ingresado al sistema':'b-pen'};
+const NODO_CSS={'C_RM':'b-crm','C_VIÑA':'b-cvina','R_VIÑA':'b-rvina','R_SERENA':'b-rser'};
+const CHART_ESTADOS=['Entregado','No entregado','Entrega parcial','Ingresado al sistema'];
+const CHART_COLORS=['#16a34a','#dc2626','#d97706','#9ca3af'];
+const sortState={rec:{col:-1,dir:1},des:{col:-1,dir:1},all:{col:-1,dir:1}};
+const gf={fecha:'',operacion:'',nodo:'',estado:''};
+const charts={};
 
 // ════════════════════════════════════════════
-// STORAGE
+// STORAGE FUNCTIONS
 // ════════════════════════════════════════════
-// load() y save() definidas arriba con MEM_STORE
-function load(){ return MEM_STORE; }
+function load(){return MEM_STORE;}
 function save(s){
-  MEM_STORE = s;  // siempre funciona (RAM)
-  if(LS_AVAILABLE){ try{ localStorage.setItem(SK,JSON.stringify(s)); }catch(e){} }
+  MEM_STORE=s;
+  if(LS_AVAILABLE){try{localStorage.setItem(SK,JSON.stringify(s));}catch(e){}}
+  if(isAuth())saveSnapshot({recepcion_despacho:s}).catch(e=>console.warn('Supabase save:',e));
+}
+
+// ════════════════════════════════════════════
+// AUTH UI
+// ════════════════════════════════════════════
+function updateAuthUI(){
+  const panel=document.getElementById('authPanel');
+  if(!panel)return;
+  if(isAuth()){
+    panel.innerHTML=`
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;background:#f0fdf4;border:1px solid #86efac;padding:12px 16px;border-radius:8px">
+        <span style="font-size:13px"><strong>✓ Sesión activa:</strong> ${currentUser()} — podés cargar y guardar archivos</span>
+        <button class="btn btn-outline btn-sm" onclick="sbSignOut()">Cerrar sesión</button>
+      </div>`;
+  }else{
+    panel.innerHTML=`
+      <div style="background:#fff7ed;border:1px solid #fed7aa;padding:14px 16px;border-radius:8px">
+        <div style="font-weight:700;margin-bottom:10px;font-size:13px">🔒 Iniciá sesión para cargar archivos</div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+          <input id="sbEmail" type="email" placeholder="Email" value="pablo.millon@bigticket.cl"
+            style="padding:7px 10px;border:1px solid #dee2e6;border-radius:6px;flex:1;min-width:200px;font-size:13px"
+            onkeydown="if(event.key==='Enter')doSignIn()">
+          <input id="sbPwd" type="password" placeholder="Contraseña"
+            style="padding:7px 10px;border:1px solid #dee2e6;border-radius:6px;flex:1;min-width:160px;font-size:13px"
+            onkeydown="if(event.key==='Enter')doSignIn()">
+          <button class="btn btn-primary" onclick="doSignIn()" style="font-size:13px">Iniciar sesión</button>
+        </div>
+        <div id="sbError" style="color:#dc2626;margin-top:8px;font-size:12px;display:none"></div>
+        <div style="font-size:11px;color:#6c757d;margin-top:8px">Solo el administrador puede cargar archivos. El equipo ve los datos sincronizados automáticamente.</div>
+      </div>`;
+  }
+}
+
+async function doSignIn(){
+  const email=(document.getElementById('sbEmail')||{}).value||'';
+  const pwd=(document.getElementById('sbPwd')||{}).value||'';
+  const errEl=document.getElementById('sbError');
+  if(!email||!pwd){if(errEl){errEl.style.display='block';errEl.textContent='Ingresá email y contraseña.';}return;}
+  try{
+    await sbSignIn(email,pwd);
+    updateAuthUI();
+    toast('✓ Sesión iniciada — '+currentUser());
+    const snap=await loadSnapshot();
+    if(snap&&snap.recepcion_despacho&&Array.isArray(snap.recepcion_despacho.files)){
+      MEM_STORE=snap.recepcion_despacho;
+      rebuildAll();
+      toast('✓ Datos sincronizados desde Supabase');
+    }
+  }catch(e){
+    if(errEl){errEl.style.display='block';errEl.textContent=e.message;}
+  }
 }
 
 // ════════════════════════════════════════════
 // HELPERS
 // ════════════════════════════════════════════
-function uid(){ return Date.now().toString(36)+Math.random().toString(36).slice(2) }
-function cs(v){ return (v==null)?'':String(v).trim() }
-
-// Formato numérico español: 16.756,5 (punto=miles, coma=decimal)
-function fmtNum(v, dec=0){
-  if(v===''||v===null||v===undefined) return '—';
-  const n=Number(v); if(isNaN(n)||n===0&&dec===0) return n===0?'0':'—';
+function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2)}
+function cs(v){return(v==null)?'':String(v).trim()}
+function cn(v){const n=parseFloat(String(v).replace(/[^0-9.]/g,''));return isNaN(n)?0:n}
+function fmtD(iso){if(!iso)return'—';const[y,m,d]=iso.split('-');return`${d}/${m}/${y}`}
+function fmtTs(ts){return new Date(ts).toLocaleString('es-CL',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'})}
+function fmtNum(v,dec=0){
+  if(v===''||v===null||v===undefined)return'—';
+  const n=Number(v);if(isNaN(n))return'—';
+  if(n===0&&dec===0)return'0';
   return n.toLocaleString('es-CL',{minimumFractionDigits:dec,maximumFractionDigits:dec});
 }
-function fmtVol(v){ return v>0?fmtNum(v,2):'—'; }
-function fmtPeso(v){ return v>0?fmtNum(v,1):'—'; }
-function cn(v){ const n=parseFloat(String(v).replace(/[^0-9.]/g,'')); return isNaN(n)?0:n }
-function fmtD(iso){ if(!iso)return'—';const[y,m,d]=iso.split('-');return`${d}/${m}/${y}` }
-function fmtTs(ts){ return new Date(ts).toLocaleString('es-CL',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'}) }
+function fmtVol(v){return v>0?fmtNum(v,2):'—';}
+function fmtPeso(v){return v>0?fmtNum(v,1):'—';}
+
+function fmtDateCell(v){
+  if(v===null||v===undefined)return'';
+  if(v instanceof Date&&!isNaN(v.getTime())){
+    const y=v.getFullYear(),mo=String(v.getMonth()+1).padStart(2,'0'),d=String(v.getDate()).padStart(2,'0');
+    return`${d}/${mo}/${y}`;
+  }
+  const s=String(v).trim();
+  if(!s||s==='0'||s==='0.0'||s===' ')return'';
+  const m=s.match(/(\d{4})-(\d{2})-(\d{2})/);
+  if(m)return`${m[3]}/${m[2]}/${m[1]}`;
+  const n=Number(s);
+  if(!isNaN(n)&&n>40000){
+    const d=new Date((n-25569)*86400*1000);
+    return`${String(d.getUTCDate()).padStart(2,'0')}/${String(d.getUTCMonth()+1).padStart(2,'0')}/${d.getUTCFullYear()}`;
+  }
+  return'';
+}
+
 function exDate(name){
   const m=name.match(/(\d{2})[.\-_](\d{2})[.\-_](\d{4})/);
   return m?`${m[3]}-${m[2]}-${m[1]}`:new Date().toISOString().slice(0,10);
 }
-function ncNode(r){ const v=cs(r).toLowerCase(); return(v.includes('valpara')||v.includes('viña')||v.includes('vina'))?'C_VIÑA':'C_RM' }
-function nrNode(g,r){ const v=cs(r).toLowerCase()+cs(g).toLowerCase(); return(v.includes('coquimbo')||v.includes('serena'))?'R_SERENA':'R_VIÑA' }
+function ncNode(r){const v=cs(r).toLowerCase();return(v.includes('valpara')||v.includes('viña')||v.includes('vina'))?'C_VIÑA':'C_RM'}
+function nrNode(g,r){const v=cs(r).toLowerCase()+cs(g).toLowerCase();return(v.includes('coquimbo')||v.includes('serena'))?'R_SERENA':'R_VIÑA'}
 function normE(e){
   const v=cs(e).toLowerCase();
-  // Rosen
   if(v==='aprobada')return'Entregado';
   if(v==='rechazada')return'No entregado';
-  // Canon — "Bodega RM - Entregado" y "Entregado" ambos = Entregado
   if(v.includes('parcial'))return'Entrega parcial';
   if(v.includes('no entregado')||v.includes('no entregada'))return'No entregado';
   if(v.includes('entregado')||v.includes('entregada'))return'Entregado';
   if(v.includes('ingresado'))return'Ingresado al sistema';
   return cs(e);
 }
-
 function dedup(rows){
   const m=new Map();
   rows.forEach(r=>{
-    if(m.has(r.orden)){
-      const x=m.get(r.orden);
-      x.volumen+=r.volumen; x.peso+=r.peso;
-      x.items+=(r.items||1);  // acumula items ya contados
-    } else { m.set(r.orden,{...r,items:(r.items||1)}); }
+    if(m.has(r.orden)){const x=m.get(r.orden);x.volumen+=r.volumen;x.peso+=r.peso;x.items+=(r.items||1);}
+    else{m.set(r.orden,{...r,items:(r.items||1)});}
   });
-  return [...m.values()];
+  return[...m.values()];
 }
+function colIdx(headers,name){const i=headers.findIndex(h=>cs(h).toLowerCase()===name.toLowerCase());return i>=0?i:null;}
 
 // ════════════════════════════════════════════
 // PARSERS
 // ════════════════════════════════════════════
-// Helpers para buscar columna por nombre (robusto ante columnas ocultas/extras)
-function colIdx(headers, name){ const i=headers.findIndex(h=>cs(h).toLowerCase()===name.toLowerCase()); return i>=0?i:null; }
-
-function fmtDateCell(v){
-  if(v===null||v===undefined) return '';
-  if(v instanceof Date && !isNaN(v.getTime())){
-    const y=v.getFullYear(), mo=String(v.getMonth()+1).padStart(2,'0'), d=String(v.getDate()).padStart(2,'0');
-    return `${d}/${mo}/${y}`;
-  }
-  const s=String(v).trim();
-  if(!s||s==='0'||s==='0.0'||s===' ') return '';
-  // String "2026-06-10 00:00:00" o "2026-06-10"
-  const m=s.match(/(\d{4})-(\d{2})-(\d{2})/);
-  if(m) return `${m[3]}/${m[2]}/${m[1]}`;
-  // Excel serial number
-  const n=Number(s);
-  if(!isNaN(n)&&n>40000){
-    const d=new Date((n-25569)*86400*1000);
-    return `${String(d.getUTCDate()).padStart(2,'0')}/${String(d.getUTCMonth()+1).padStart(2,'0')}/${d.getUTCFullYear()}`;
-  }
-  return '';
-}
-
-function parseTroncal(wb, dateStr){
-  const ws=wb.Sheets['DispatchTrack']; if(!ws)return[];
+function parseTroncal(wb,dateStr){
+  const ws=wb.Sheets['DispatchTrack'];if(!ws)return[];
   const d=XLSX.utils.sheet_to_json(ws,{header:1,defval:''});
   const h=d[0];
-  const iOrden=colIdx(h,'Orden')??2, iCliente=colIdx(h,'Cliente')??3;
-  const iEstado=colIdx(h,'Estado')??6, iSub=colIdx(h,'Subestado')??7;
-  const iTimMin=colIdx(h,'Tiempo min entrega')??18;  // col S
-  const iTimMax=colIdx(h,'Tiempo max entrega')??19;  // col T
-  const iRegion=colIdx(h,'Region')??21, iVol=colIdx(h,'Volumen')??30, iPeso=colIdx(h,'Peso')??31;
+  const iOrden=colIdx(h,'Orden')??2,iCliente=colIdx(h,'Cliente')??3;
+  const iEstado=colIdx(h,'Estado')??6,iSub=colIdx(h,'Subestado')??7;
+  const iTimMin=colIdx(h,'Tiempo min entrega')??18;
+  const iTimMax=colIdx(h,'Tiempo max entrega')??19;
+  const iRegion=colIdx(h,'Region')??21,iVol=colIdx(h,'Volumen')??30,iPeso=colIdx(h,'Peso')??31;
   return d.slice(1).filter(r=>cs(r[iOrden])).map(r=>({
     orden:cs(r[iOrden]),cliente:cs(r[iCliente])||'Canon',nodo:ncNode(r[iRegion]),
     fuente:'troncal',estado:normE(r[iEstado]),subestado:cs(r[iSub]),
     region:cs(r[iRegion]),volumen:cn(r[iVol]),peso:cn(r[iPeso]),
-    fechaMin:fmtDateCell(r[iTimMin]),fechaMax:fmtDateCell(r[iTimMax]),
-    dateStr
+    fechaMin:fmtDateCell(r[iTimMin]),fechaMax:fmtDateCell(r[iTimMax]),dateStr
   }));
 }
-function parseUM(wb, dateStr){
-  const ws=wb.Sheets['DispatchTrack']; if(!ws)return[];
+function parseUM(wb,dateStr){
+  const ws=wb.Sheets['DispatchTrack'];if(!ws)return[];
   const d=XLSX.utils.sheet_to_json(ws,{header:1,defval:''});
   const h=d[0];
-  const iOrden=colIdx(h,'Orden')??2, iCliente=colIdx(h,'Cliente')??3;
-  const iEstado=colIdx(h,'Estado')??6, iSub=colIdx(h,'Subestado')??7;
-  // UM tiene una columna extra "Destino" (col 8), región está en col 22
-  const iRegion=colIdx(h,'Region')??22, iVol=colIdx(h,'Volumen')??31, iPeso=colIdx(h,'Peso')??32;
-  return d.slice(1)
-    .filter(r=>cs(r[iOrden]))
-    // Excluir "Cargado Troncal": son confirmaciones de carga al troncal, no entregas finales
+  const iOrden=colIdx(h,'Orden')??2,iCliente=colIdx(h,'Cliente')??3;
+  const iEstado=colIdx(h,'Estado')??6,iSub=colIdx(h,'Subestado')??7;
+  const iRegion=colIdx(h,'Region')??22,iVol=colIdx(h,'Volumen')??31,iPeso=colIdx(h,'Peso')??32;
+  return d.slice(1).filter(r=>cs(r[iOrden]))
     .filter(r=>cs(r[iSub]).toLowerCase()!=='cargado troncal')
     .map(r=>({
       orden:cs(r[iOrden]),cliente:cs(r[iCliente])||'Canon',nodo:ncNode(r[iRegion]),
@@ -738,19 +818,18 @@ function parseUM(wb, dateStr){
       region:cs(r[iRegion]),volumen:cn(r[iVol]),peso:cn(r[iPeso]),dateStr
     }));
 }
-function parseRosen(wb, dateStr){
-  const ws=wb.Sheets['PdE']; if(!ws)return[];
+function parseRosen(wb,dateStr){
+  const ws=wb.Sheets['PdE'];if(!ws)return[];
   const d=XLSX.utils.sheet_to_json(ws,{header:1,defval:''});
   const h=d[0];
-  // Búsqueda robusta por nombre de columna
-  const iOrden   = colIdx(h,'Código de Orden')??8;
-  const iCliente = colIdx(h,'Nombre Cliente')??10;
-  const iGrupo   = colIdx(h,'Grupo de Flota')??2;
-  const iRegion  = colIdx(h,'Región')??colIdx(h,'Region')??15;
-  const iComuna  = colIdx(h,'Comuna')??14;
-  const iUnidades= colIdx(h,'Unidades')??20;  // m³ en Rosen
-  const iEstado  = ['Estado de la órden','Estado de la orden','Estado'].map(n=>colIdx(h,n)).find(i=>i!=null)??28;
-  const iMotivo  = colIdx(h,'Motivo')??29;
+  const iOrden=colIdx(h,'Código de Orden')??8;
+  const iCliente=colIdx(h,'Nombre Cliente')??10;
+  const iGrupo=colIdx(h,'Grupo de Flota')??2;
+  const iRegion=colIdx(h,'Región')??colIdx(h,'Region')??15;
+  const iComuna=colIdx(h,'Comuna')??14;
+  const iUnidades=colIdx(h,'Unidades')??20;
+  const iEstado=['Estado de la órden','Estado de la orden','Estado'].map(n=>colIdx(h,n)).find(i=>i!=null)??28;
+  const iMotivo=colIdx(h,'Motivo')??29;
   return d.slice(1).filter(r=>cs(r[iOrden])).map(r=>({
     orden:cs(r[iOrden]),cliente:cs(r[iCliente])||'Rosen',nodo:nrNode(r[iGrupo],r[iRegion]),
     fuente:'rosen',estado:normE(r[iEstado]),subestado:cs(r[iMotivo]),
@@ -761,10 +840,20 @@ function parseRosen(wb, dateStr){
 // ════════════════════════════════════════════
 // FILE HANDLING
 // ════════════════════════════════════════════
-function dzOver(e,el){e.preventDefault();el.classList.add('drag')}
+function dzOver(e,el){
+  if(!isAuth()){e.preventDefault();toast('🔒 Iniciá sesión para cargar archivos','err');return;}
+  e.preventDefault();el.classList.add('drag');
+}
 function dzOut(el){el.classList.remove('drag')}
-function dzDrop(e,t,el){e.preventDefault();el.classList.remove('drag');const f=e.dataTransfer.files[0];if(f)processFile(f,t,el)}
-function onFile(e,t,el){const f=e.target.files[0];if(f)processFile(f,t,el)}
+function dzDrop(e,t,el){
+  e.preventDefault();el.classList.remove('drag');
+  if(!isAuth()){toast('🔒 Iniciá sesión para cargar archivos','err');return;}
+  const f=e.dataTransfer.files[0];if(f)processFile(f,t,el);
+}
+function onFile(e,t,el){
+  if(!isAuth()){toast('🔒 Iniciá sesión para cargar archivos','err');return;}
+  const f=e.target.files[0];if(f)processFile(f,t,el);
+}
 
 function processFile(file,type,el){
   const reader=new FileReader();
@@ -777,25 +866,16 @@ function processFile(file,type,el){
       else if(type==='um')rawRows=parseUM(wb,dateStr);
       else rawRows=parseRosen(wb,dateStr);
       if(!rawRows.length){toast('⚠️ No se encontraron datos en el archivo','err');return;}
-
-      // Guardar solo filas DEDUPLICADAS (mucho menor tamaño en localStorage)
       const dedupRows=dedup(rawRows);
-      const entry={
-        id:uid(), name:file.name, type, dateStr,
-        loadedAt:Date.now(),
-        totalRows:rawRows.length,
-        uniqueOrders:dedupRows.length,
-        rows:dedupRows   // ← solo deduplicadas, no las brutas
-      };
-
+      const entry={id:uid(),name:file.name,type,dateStr,loadedAt:Date.now(),
+        totalRows:rawRows.length,uniqueOrders:dedupRows.length,rows:dedupRows};
       const s=load();
       s.files.push(entry);
-      save(s);  // guarda en RAM + localStorage si está disponible
-
+      save(s);
       el.classList.add('loaded');
       document.getElementById('dst-'+type).textContent=
-        `✓ ${dedupRows.length.toLocaleString('es-CL')} órdenes únicas / ${rawRows.length.toLocaleString('es-CL')} filas`;
-      toast(`✓ ${file.name} — ${dedupRows.length.toLocaleString('es-CL')} órdenes únicas`);
+        `✓ ${fmtNum(dedupRows.length)} órdenes únicas / ${fmtNum(rawRows.length)} filas`;
+      toast(`✓ ${file.name} — ${fmtNum(dedupRows.length)} órdenes únicas`);
       rebuildAll();
     }catch(err){toast('⚠️ Error: '+err.message,'err');}
   };
@@ -805,26 +885,20 @@ function processFile(file,type,el){
 // ════════════════════════════════════════════
 // GET DATA
 // ════════════════════════════════════════════
-function getRows(type){ return load().files.filter(f=>f.type===type).flatMap(f=>f.rows); }
-// Recepción: solo "Ingresado al sistema" del troncal (órdenes pendientes de despacho)
-function getRecRows(){ return dedup(getRows('troncal')).filter(r=>r.estado==='Ingresado al sistema'); }
-// Despacho: solo UM + Rosen (NO mezclamos con troncal — tienen el mismo N° orden pero distintas etapas)
-function getDesRows(){ return dedup([...getRows('um'),...getRows('rosen')]); }
-
-// Cruce: órdenes recibidas en troncal cruzadas con despacho
-// Devuelve sets de IDs para calcular stock
-function getStockSets(){
-  const recOrders = new Set(getRecRows().map(r=>r.orden));
-  const desOrders = new Set(getDesRows().map(r=>r.orden));
-  const enDespacho = new Set([...recOrders].filter(o=>desOrders.has(o)));
-  const enStock    = new Set([...recOrders].filter(o=>!desOrders.has(o)));
-  return { recOrders, desOrders, enDespacho, enStock };
-}
-// Detalle all: muestra cada módulo por separado (sin dedup cruzado)
+function getRows(type){return load().files.filter(f=>f.type===type).flatMap(f=>f.rows);}
+function getRecRows(){return dedup(getRows('troncal')).filter(r=>r.estado==='Ingresado al sistema');}
+function getDesRows(){return dedup([...getRows('um'),...getRows('rosen')]);}
 function getAllRows(){
-  const rec = dedup(getRows('troncal'));
-  const des = dedup([...getRows('um'),...getRows('rosen')]);
-  return [...rec,...des];
+  const rec=dedup(getRows('troncal'));
+  const des=dedup([...getRows('um'),...getRows('rosen')]);
+  return[...rec,...des];
+}
+function getStockSets(){
+  const recOrders=new Set(getRecRows().map(r=>r.orden));
+  const desOrders=new Set(getDesRows().map(r=>r.orden));
+  const enDespacho=new Set([...recOrders].filter(o=>desOrders.has(o)));
+  const enStock=new Set([...recOrders].filter(o=>!desOrders.has(o)));
+  return{recOrders,desOrders,enDespacho,enStock};
 }
 
 // ════════════════════════════════════════════
@@ -843,19 +917,15 @@ function clearFilters(){
   rebuildAll();
 }
 function matchGF(r){
-  if(gf.fecha && r.dateStr!==gf.fecha) return false;
-  if(gf.nodo && r.nodo!==gf.nodo) return false;
-  if(gf.estado && r.estado!==gf.estado) return false;
+  if(gf.fecha&&r.dateStr!==gf.fecha)return false;
+  if(gf.nodo&&r.nodo!==gf.nodo)return false;
+  if(gf.estado&&r.estado!==gf.estado)return false;
   if(gf.operacion){
-    if(gf.operacion==='Canon'&&r.fuente==='rosen') return false;
-    if(gf.operacion==='Rosen'&&r.fuente!=='rosen') return false;
+    if(gf.operacion==='Canon'&&r.fuente==='rosen')return false;
+    if(gf.operacion==='Rosen'&&r.fuente!=='rosen')return false;
   }
   return true;
 }
-
-// ════════════════════════════════════════════
-// UPDATE FECHA FILTER OPTIONS
-// ════════════════════════════════════════════
 function updateFechaOptions(){
   const s=load();
   const dates=[...new Set(s.files.map(f=>f.dateStr))].sort().reverse();
@@ -867,35 +937,29 @@ function updateFechaOptions(){
 // ════════════════════════════════════════════
 // SUMMARY CARDS
 // ════════════════════════════════════════════
-const SC_CARDS = {'C_RM':'sc-crm','C_VIÑA':'sc-cvina','R_VIÑA':'sc-rvina','R_SERENA':'sc-rser'};
+const SC_CARDS={'C_RM':'sc-crm','C_VIÑA':'sc-cvina','R_VIÑA':'sc-rvina','R_SERENA':'sc-rser'};
 
 function renderSummaryCards(){
-  // Recepción: troncal "Ingresado al sistema" = órdenes pendientes de despachar
-  const recAll = dedup(getRows('troncal')).filter(r=>matchGF(r));
-  // Despacho: UM + Rosen (módulo independiente)
-  const desAll = dedup([...getRows('um'),...getRows('rosen')]).filter(r=>matchGF(r));
-
+  const recAll=dedup(getRows('troncal')).filter(r=>matchGF(r));
+  const desAll=dedup([...getRows('um'),...getRows('rosen')]).filter(r=>matchGF(r));
   NODES.forEach(nodo=>{
     const el=document.getElementById(SC_CARDS[nodo]);
     const hdr=el.querySelector('.sc-header').outerHTML;
     const recRows=recAll.filter(r=>r.nodo===nodo&&r.estado==='Ingresado al sistema');
     const desRows=desAll.filter(r=>r.nodo===nodo);
-    const hasAny = recRows.length||desRows.length;
+    const hasAny=recRows.length||desRows.length;
     if(!hasAny){
       el.innerHTML=hdr+'<div class="sc-nodata">Sin datos'+(nodo==='R_SERENA'?' — pendiente':'')+'</div>';
       return;
     }
-    // Recepción block
     const recVol=recRows.reduce((s,r)=>s+r.volumen,0);
     const {enDespacho:scED,enStock:scES}=getStockSets();
     const nED=recRows.filter(r=>scED.has(r.orden)).length;
     const nES=recRows.filter(r=>scES.has(r.orden)).length;
-    // Despacho block
     const desTotal=desRows.length;
     const desEnt=desRows.filter(r=>r.estado==='Entregado').length;
     const desNo=desRows.filter(r=>r.estado==='No entregado').length;
     const desPct=desTotal>0?Math.round(desEnt/desTotal*100):0;
-
     el.innerHTML=hdr+`
       ${recRows.length?`
       <div class="sc-section-lbl">Recepción troncal</div>
@@ -909,10 +973,10 @@ function renderSummaryCards(){
       <div class="sc-divider"></div>
       <div class="sc-section-lbl">Despacho última milla</div>
       <div class="sc-kpis">
-        <div><div class="sc-kpi-val">${desTotal.toLocaleString('es-CL')}</div><div class="sc-kpi-lbl">Órdenes</div></div>
-        <div><div class="sc-kpi-val kv-green">${desEnt.toLocaleString('es-CL')}</div><div class="sc-kpi-lbl">Entregadas</div></div>
-        <div><div class="sc-kpi-val kv-red">${desNo.toLocaleString('es-CL')}</div><div class="sc-kpi-lbl">No entregadas</div></div>
-        <div><div class="sc-kpi-val kv-yellow">${(desTotal-desEnt-desNo).toLocaleString('es-CL')}</div><div class="sc-kpi-lbl">Pendientes</div></div>
+        <div><div class="sc-kpi-val">${fmtNum(desTotal)}</div><div class="sc-kpi-lbl">Órdenes</div></div>
+        <div><div class="sc-kpi-val kv-green">${fmtNum(desEnt)}</div><div class="sc-kpi-lbl">Entregadas</div></div>
+        <div><div class="sc-kpi-val kv-red">${fmtNum(desNo)}</div><div class="sc-kpi-lbl">No entregadas</div></div>
+        <div><div class="sc-kpi-val kv-yellow">${fmtNum(desTotal-desEnt-desNo)}</div><div class="sc-kpi-lbl">Pendientes</div></div>
       </div>
       <div class="sc-bar"><div class="sc-bar-fill" style="width:${desPct}%;background:${desPct>=90?'#16a34a':desPct>=70?'#d97706':'#f97316'}"></div></div>
       <div class="sc-bar-meta"><span>Efectividad despacho</span><span style="font-weight:700;color:${desPct>=90?'#16a34a':desPct>=70?'#d97706':'#dc2626'}">${desPct}%</span></div>`
@@ -921,10 +985,10 @@ function renderSummaryCards(){
 }
 
 // ════════════════════════════════════════════
-// NODES TABLE
+// NODE TABLES
 // ════════════════════════════════════════════
 function pctBar(pct,color){
-  return `<div class="pct-wrap"><div class="pct-bar"><div class="pct-fill" style="width:${pct}%;background:${color}"></div></div><span class="pct-val" style="color:${color};font-weight:700">${pct}%</span></div>`;
+  return`<div class="pct-wrap"><div class="pct-bar"><div class="pct-fill" style="width:${pct}%;background:${color}"></div></div><span class="pct-val" style="color:${color};font-weight:700">${pct}%</span></div>`;
 }
 
 function renderRecNodesTable(recRows){
@@ -932,58 +996,43 @@ function renderRecNodesTable(recRows){
   const rows=recRows.filter(matchGF);
   if(!rows.length){tbody.innerHTML='<tr><td colspan="8" style="text-align:center;padding:32px;color:#adb5bd">Sin datos — cargá el archivo Troncal Canon</td></tr>';return;}
   const {enDespacho,enStock}=getStockSets();
-
   let html='';
   NODES.filter(n=>n.startsWith('C')).forEach(nodo=>{
     const nr=rows.filter(r=>r.nodo===nodo);
-    if(!nr.length){ html+=`<tr><td class="node-name-cell">${nodo}</td><td colspan="7" style="color:#adb5bd;padding:14px 16px">Sin datos</td></tr>`; return; }
+    if(!nr.length){html+=`<tr><td class="node-name-cell">${nodo}</td><td colspan="7" style="color:#adb5bd;padding:14px 16px">Sin datos</td></tr>`;return;}
     const total=nr.length;
     const vol=nr.reduce((s,r)=>s+r.volumen,0),peso=nr.reduce((s,r)=>s+r.peso,0);
     const nEnDespacho=nr.filter(r=>enDespacho.has(r.orden)).length;
     const nEnStock=nr.filter(r=>enStock.has(r.orden)).length;
-    // Fechas compromiso únicas
     const fechasMin=[...new Set(nr.map(r=>r.fechaMin).filter(Boolean))].sort();
-    const fechasMax=[...new Set(nr.map(r=>r.fechaMax).filter(Boolean))].sort();
-    const fechaRange = fechasMin.length
-      ? `<span class="fecha-chip">${fechasMin[0]}</span>${fechasMin.length>1?` — <span class="fecha-chip">${fechasMin[fechasMin.length-1]}</span>`:''}`
-      : '—';
+    const fechaRange=fechasMin.length
+      ?`<span class="fecha-chip">${fechasMin[0]}</span>${fechasMin.length>1?` — <span class="fecha-chip">${fechasMin[fechasMin.length-1]}</span>`:''}`
+      :'—';
     const detId=`det-rec-${nodo.replace(/[^a-z0-9]/gi,'_')}`;
-
-    // Agrupar órdenes por fecha de compromiso
-    const byFecha = {};
-    nr.forEach(r=>{
-      const f = r.fechaMin||'Sin fecha';
-      if(!byFecha[f]) byFecha[f]=[];
-      byFecha[f].push(r);
-    });
-    const fechasOrdenadas = Object.keys(byFecha).sort((a,b)=>{
-      if(a==='Sin fecha') return 1;
-      if(b==='Sin fecha') return -1;
-      // sort by DD/MM/YYYY → convert to YYYY-MM-DD
-      const toIso=f=>{ const p=f.split('/'); return p.length===3?`${p[2]}-${p[1]}-${p[0]}`:f; };
+    const byFecha={};
+    nr.forEach(r=>{const f=r.fechaMin||'Sin fecha';if(!byFecha[f])byFecha[f]=[];byFecha[f].push(r);});
+    const fechasOrd=Object.keys(byFecha).sort((a,b)=>{
+      if(a==='Sin fecha')return 1;if(b==='Sin fecha')return -1;
+      const toIso=f=>{const p=f.split('/');return p.length===3?`${p[2]}-${p[1]}-${p[0]}`:f;};
       return toIso(a).localeCompare(toIso(b));
     });
-    const detailRows = fechasOrdenadas.map(fecha=>{
-      const ords = byFecha[fecha];
-      const gVol = ords.reduce((s,r)=>s+r.volumen,0);
-      const gPeso = ords.reduce((s,r)=>s+r.peso,0);
-      return `
-        <tr style="background:#eff6ff"><td colspan="7" style="padding:6px 10px;font-weight:700;font-size:11px;color:#1d4ed8;border-bottom:1px solid #dbeafe">
-          📅 Compromiso: <span class="fecha-chip">${fecha}</span>
-          &nbsp;|&nbsp; ${ords.length} órdenes
-          ${gVol>0?`&nbsp;|&nbsp; ${fmtNum(gVol,2)} m³`:''}
-          ${gPeso>0?`&nbsp;|&nbsp; ${fmtNum(gPeso,1)} kg`:''}
-        </td></tr>
-        ${ords.map(r=>`<tr>
-          <td style="font-family:monospace;font-weight:700;color:#1e3a8a;padding-left:20px">${r.orden}</td>
-          <td>${r.cliente}</td><td>${r.region||'—'}</td>
-          <td><span class="fecha-chip">${r.fechaMin||'—'}</span></td>
-          <td><span class="fecha-chip">${r.fechaMax||r.fechaMin||'—'}</span></td>
-          <td style="text-align:right">${r.volumen>0?fmtNum(r.volumen,3):'—'}</td>
-          <td style="text-align:right">${r.peso>0?fmtNum(r.peso,1):'—'}</td>
-        </tr>`).join('')}`;
+    const detailRows=fechasOrd.map(fecha=>{
+      const ords=byFecha[fecha];
+      const gVol=ords.reduce((s,r)=>s+r.volumen,0),gPeso=ords.reduce((s,r)=>s+r.peso,0);
+      return`<tr style="background:#eff6ff"><td colspan="7" style="padding:6px 10px;font-weight:700;font-size:11px;color:#1d4ed8;border-bottom:1px solid #dbeafe">
+        📅 Compromiso: <span class="fecha-chip">${fecha}</span> &nbsp;|&nbsp; ${ords.length} órdenes
+        ${gVol>0?`&nbsp;|&nbsp; ${fmtNum(gVol,2)} m³`:''}
+        ${gPeso>0?`&nbsp;|&nbsp; ${fmtNum(gPeso,1)} kg`:''}
+      </td></tr>
+      ${ords.map(r=>`<tr>
+        <td style="font-family:monospace;font-weight:700;color:#1e3a8a;padding-left:20px">${r.orden}</td>
+        <td>${r.cliente}</td><td>${r.region||'—'}</td>
+        <td><span class="fecha-chip">${r.fechaMin||'—'}</span></td>
+        <td><span class="fecha-chip">${r.fechaMax||r.fechaMin||'—'}</span></td>
+        <td style="text-align:right">${r.volumen>0?fmtNum(r.volumen,3):'—'}</td>
+        <td style="text-align:right">${r.peso>0?fmtNum(r.peso,1):'—'}</td>
+      </tr>`).join('')}`;
     }).join('');
-
     html+=`<tr>
       <td class="node-name-cell">${nodo}</td>
       <td class="num-cell" style="font-size:16px;color:#1e3a8a">${fmtNum(total)}</td>
@@ -995,7 +1044,7 @@ function renderRecNodesTable(recRows){
       <td style="padding:14px 16px"><button class="node-expand-btn" onclick="toggleDetail('${detId}',this)">Ver órdenes ▼</button></td>
     </tr>
     <tr id="${detId}" class="node-detail-row">
-      <td colspan="6"><div class="node-detail-inner">
+      <td colspan="8"><div class="node-detail-inner">
         <table>
           <thead><tr><th>N° Orden</th><th>Cliente</th><th>Región</th><th>F. Comprm. Mín</th><th>F. Comprm. Máx</th><th style="text-align:right">Vol m³</th><th style="text-align:right">Peso kg</th></tr></thead>
           <tbody>${detailRows}</tbody>
@@ -1014,19 +1063,14 @@ function toggleDetail(id,btn){
 }
 
 function renderDesNodesTable(desRows){
-  const bodies={recepcion:'nt-rec-body', despacho:'nt-des-body'};
-
-  // Resumen tab nodes tables
   const recRows=getRecRows().filter(matchGF);
   const rBody=document.getElementById('nt-rec-body');
   if(recRows.length){
     const {enDespacho:edR,enStock:esR}=getStockSets();
     rBody.innerHTML=NODES.filter(n=>n.startsWith('C')).map(nodo=>{
       const nr=recRows.filter(r=>r.nodo===nodo);
-      if(!nr.length)return`<tr><td class="node-name-cell">${nodo}</td><td colspan="6" style="color:#adb5bd">Sin datos</td></tr>`;
-      const total=nr.length;
-      const nED=nr.filter(r=>edR.has(r.orden)).length;
-      const nES=nr.filter(r=>esR.has(r.orden)).length;
+      if(!nr.length)return`<tr><td class="node-name-cell">${nodo}</td><td colspan="5" style="color:#adb5bd">Sin datos</td></tr>`;
+      const total=nr.length,nED=nr.filter(r=>edR.has(r.orden)).length,nES=nr.filter(r=>esR.has(r.orden)).length;
       const vol=nr.reduce((s,r)=>s+r.volumen,0),peso=nr.reduce((s,r)=>s+r.peso,0);
       return`<tr>
         <td class="node-name-cell">${nodo}</td>
@@ -1037,35 +1081,30 @@ function renderDesNodesTable(desRows){
         <td class="num-cell">${fmtNum(peso,1)}</td></tr>`;
     }).join('');
   }
-
   const rows=desRows.filter(matchGF);
   const dBody=document.getElementById('nt-des-body');
   if(!rows.length){dBody.innerHTML='<tr><td colspan="6" style="text-align:center;padding:24px;color:#adb5bd">Sin datos de despacho</td></tr>';return;}
-
-  // Also update the despacho tab table
   const desBody=document.getElementById('tbody-des-nodes');
   const nodeHtml=NODES.map(nodo=>{
     const nr=rows.filter(r=>r.nodo===nodo);
-    if(!nr.length)return`<tr><td class="node-name-cell">${nodo}</td><td colspan="8" style="color:#adb5bd;padding:14px 16px">Sin datos</td></tr>`;
+    if(!nr.length)return`<tr><td class="node-name-cell">${nodo}</td><td colspan="5" style="color:#adb5bd;padding:14px 16px">Sin datos</td></tr>`;
     const total=nr.length;
     const ent=nr.filter(r=>r.estado==='Entregado').length;
     const noE=nr.filter(r=>r.estado==='No entregado').length;
     const par=nr.filter(r=>r.estado==='Entrega parcial').length;
     const efect=Math.round(ent/total*100);
     const vol=nr.reduce((s,r)=>s+r.volumen,0);
-    const volOK=nr.filter(r=>r.estado==='Entregado').reduce((s,r)=>s+r.volumen,0);
-    const pctVol=vol>0?Math.round(volOK/vol*100):0;
     return`<tr>
       <td class="node-name-cell">${nodo}</td>
-      <td class="num-cell">${total.toLocaleString('es-CL')}</td>
-      <td class="num-cell" style="color:#16a34a;font-weight:700">${ent.toLocaleString('es-CL')}</td>
-      <td class="num-cell" style="color:#dc2626;font-weight:700">${noE.toLocaleString('es-CL')}</td>
+      <td class="num-cell">${fmtNum(total)}</td>
+      <td class="num-cell" style="color:#16a34a;font-weight:700">${fmtNum(ent)}</td>
+      <td class="num-cell" style="color:#dc2626;font-weight:700">${fmtNum(noE)}</td>
       <td class="num-cell" style="color:#d97706">${par}</td>
       <td class="pct-cell">${pctBar(efect,efect>=90?'#16a34a':efect>=70?'#d97706':'#f97316')}</td>
       <td class="num-cell">${fmtNum(vol,2)}</td></tr>`;
   }).join('');
-  if(desBody) desBody.innerHTML=nodeHtml;
-  dBody.innerHTML=nodeHtml.replace(/colspan="8"/g,'colspan="5"');
+  if(desBody)desBody.innerHTML=nodeHtml;
+  dBody.innerHTML=nodeHtml;
 }
 
 // ════════════════════════════════════════════
@@ -1074,7 +1113,7 @@ function renderDesNodesTable(desRows){
 function renderCharts(desRows){
   const cfgs={'C_RM':{c:'ch-crm',l:'cc-crm'},'C_VIÑA':{c:'ch-cvina',l:'cc-cvina'},'R_VIÑA':{c:'ch-rvina',l:'cc-rvina'},'R_SERENA':{c:'ch-rser',l:'cc-rser'}};
   NODES.forEach(nodo=>{
-    const {c,l}=cfgs[nodo];
+    const{c,l}=cfgs[nodo];
     const canvas=document.getElementById(c),lEl=document.getElementById(l);
     if(charts[nodo]){charts[nodo].destroy();delete charts[nodo];}
     const rows=desRows.filter(r=>r.nodo===nodo&&matchGF(r));
@@ -1095,6 +1134,10 @@ function renderCharts(desRows){
 // ════════════════════════════════════════════
 // ORDER TABLES
 // ════════════════════════════════════════════
+const recKeys=['orden','cliente','nodo','region','fechaMin','fechaMax','volumen','peso'];
+const desKeys=['orden','cliente','nodo','fuente','estado','subestado','region','items','volumen','peso'];
+const allKeys=['orden','cliente','nodo','fuente','estado','subestado','region','items','volumen','peso'];
+
 function badge(text,cls){return`<span class="badge ${cls||''}">${text||'—'}</span>`}
 function estBadge(e){return badge(e,ESTADO_CSS[e]||'b-pen')}
 function nodoBadge(n){return badge(n,NODO_CSS[n]||'')}
@@ -1116,19 +1159,14 @@ function doSort(rows,col,dir,keys){
   return[...rows].sort((a,b)=>{const va=a[keys[col]]??'',vb=b[keys[col]]??'';return va<vb?-dir:va>vb?dir:0});
 }
 
-const recKeys=['orden','cliente','nodo','region','fechaMin','fechaMax','volumen','peso'];
-const desKeys=['orden','cliente','nodo','fuente','estado','subestado','region','items','volumen','peso'];
-const allKeys=['orden','cliente','nodo','fuente','estado','subestado','region','items','volumen','peso'];
-
 function renderRecTable(){
   const rows=doSort(filterRows(getRecRows(),
     document.getElementById('src-rec').value,
     document.getElementById('fsel-rec-nodo').value,
-    '',null),
-    sortState.rec.col,sortState.rec.dir,recKeys);
-  document.getElementById('count-rec').textContent=rows.length.toLocaleString('es-CL')+' registros';
+    '',null),sortState.rec.col,sortState.rec.dir,recKeys);
+  document.getElementById('count-rec').textContent=fmtNum(rows.length)+' registros';
   const tbody=document.getElementById('tbody-rec-orders');
-  if(!rows.length){tbody.innerHTML=`<tr class="empty-row-msg"><td colspan="9"><span>${getRecRows().length?'🔍':'📂'}</span>${getRecRows().length?'Sin coincidencias':'Cargá el Troncal Canon'}</td></tr>`;return;}
+  if(!rows.length){tbody.innerHTML=`<tr class="empty-row-msg"><td colspan="8"><span>${getRecRows().length?'🔍':'📂'}</span>${getRecRows().length?'Sin coincidencias':'Cargá el Troncal Canon'}</td></tr>`;return;}
   tbody.innerHTML=rows.map(r=>`<tr>
     <td class="order-id">${r.orden}</td><td>${r.cliente}</td><td>${nodoBadge(r.nodo)}</td>
     <td>${r.region||'—'}</td>
@@ -1145,7 +1183,7 @@ function renderDesTable(){
     document.getElementById('fsel-des-estado').value,
     document.getElementById('fsel-des-fuente').value),
     sortState.des.col,sortState.des.dir,desKeys);
-  document.getElementById('count-des').textContent=rows.length.toLocaleString('es-CL')+' registros';
+  document.getElementById('count-des').textContent=fmtNum(rows.length)+' registros';
   const tbody=document.getElementById('tbody-des-orders');
   if(!rows.length){tbody.innerHTML=`<tr class="empty-row-msg"><td colspan="10"><span>${getDesRows().length?'🔍':'📂'}</span>${getDesRows().length?'Sin coincidencias':'Cargá los archivos de despacho'}</td></tr>`;return;}
   tbody.innerHTML=rows.map(r=>`<tr>
@@ -1164,7 +1202,7 @@ function renderAllTable(){
     document.getElementById('fsel-all-estado').value,
     document.getElementById('fsel-all-modulo').value),
     sortState.all.col,sortState.all.dir,allKeys);
-  document.getElementById('count-all').textContent=rows.length.toLocaleString('es-CL')+' registros';
+  document.getElementById('count-all').textContent=fmtNum(rows.length)+' registros';
   const tbody=document.getElementById('tbody-all-orders');
   if(!rows.length){tbody.innerHTML=`<tr class="empty-row-msg"><td colspan="10"><span>${getAllRows().length?'🔍':'📂'}</span>${getAllRows().length?'Sin coincidencias':'Cargá archivos para ver datos'}</td></tr>`;return;}
   tbody.innerHTML=rows.map(r=>`<tr>
@@ -1178,14 +1216,17 @@ function renderAllTable(){
 
 function srt(tbl,col){
   const st=sortState[tbl];
-  st.dir=st.col===col?st.dir*-1:1; st.col=col;
+  st.dir=st.col===col?st.dir*-1:1;st.col=col;
   const tblEl=document.querySelector(tbl==='rec'?'#tbody-rec-orders':tbl==='des'?'#tbody-des-orders':'#tbody-all-orders').closest('table');
-  tblEl.querySelectorAll('th').forEach((th,i)=>{th.classList.remove('s-asc','s-desc');th.classList.add(st.dir===1?'s-asc':'s-desc');});
+  tblEl.querySelectorAll('th').forEach((th,i)=>{th.classList.remove('s-asc','s-desc');if(i===col)th.classList.add(st.dir===1?'s-asc':'s-desc');});
   if(tbl==='rec')renderRecTable();
   else if(tbl==='des')renderDesTable();
   else renderAllTable();
 }
 
+// ════════════════════════════════════════════
+// FILES TABLE & DELETE
+// ════════════════════════════════════════════
 function renderFilesTable(){
   const s=load();
   const tbody=document.getElementById('files-tbody');
@@ -1201,12 +1242,12 @@ function renderFilesTable(){
 }
 
 function deleteFile(id){
-  const s=load(); s.files=s.files.filter(f=>f.id!==id); save(s);
-  rebuildAll(); toast('Archivo eliminado');
+  const s=load();s.files=s.files.filter(f=>f.id!==id);save(s);
+  rebuildAll();toast('Archivo eliminado');
 }
 function confirmDeleteAll(){
   showDlg('Eliminar todo','¿Eliminar todos los archivos cargados? Esta acción no se puede deshacer.',()=>{
-    save({files:[]}); rebuildAll(); toast('Todos los archivos eliminados');
+    save({files:[]});rebuildAll();toast('Todos los archivos eliminados');
   });
 }
 function showDayDialog(){
@@ -1219,10 +1260,13 @@ function showDayDialog(){
 }
 function deleteByDay(){
   const day=document.getElementById('day-sel').value;
-  const s=load(); s.files=s.files.filter(f=>f.dateStr!==day); save(s);
-  closeDlg('dlg-day'); rebuildAll(); toast(`Archivos del ${fmtD(day)} eliminados`);
+  const s=load();s.files=s.files.filter(f=>f.dateStr!==day);save(s);
+  closeDlg('dlg-day');rebuildAll();toast(`Archivos del ${fmtD(day)} eliminados`);
 }
 
+// ════════════════════════════════════════════
+// HEADER & UTILS
+// ════════════════════════════════════════════
 function updateHeaderInfo(){
   const s=load();
   const el=document.getElementById('header-info');
@@ -1238,12 +1282,12 @@ function exportJSON(){
   const a=document.createElement('a');
   a.href=URL.createObjectURL(blob);
   a.download='recepcion_despacho_'+new Date().toISOString().slice(0,10)+'.json';
-  a.click(); URL.revokeObjectURL(a.href);
+  a.click();URL.revokeObjectURL(a.href);
   toast('JSON exportado');
 }
 
 function rebuildAll(){
-  const recRows=getRecRows(), desRows=getDesRows();
+  const recRows=getRecRows(),desRows=getDesRows();
   renderSummaryCards();
   renderRecNodesTable(recRows);
   renderDesNodesTable(desRows);
@@ -1256,24 +1300,27 @@ function rebuildAll(){
   updateFechaOptions();
 }
 
+// ════════════════════════════════════════════
+// NAVIGATION
+// ════════════════════════════════════════════
 function showTab(id,el){
   document.querySelectorAll('.tab-content').forEach(t=>t.classList.remove('active'));
   document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
   document.getElementById('tab-'+id).classList.add('active');
-  if(el) el.classList.add('active');
+  if(el)el.classList.add('active');
   document.getElementById('filter-bar').style.display=(id==='cargar')?'none':'flex';
 }
-function switchToCargar(){
-  showTab('cargar',document.getElementById('tab-btn-cargar'));
-}
+function switchToCargar(){showTab('cargar',document.getElementById('tab-btn-cargar'));}
 
+// ════════════════════════════════════════════
+// TOAST / DIALOG
+// ════════════════════════════════════════════
 let toastT;
 function toast(msg,type=''){
   const el=document.getElementById('toast');
-  el.textContent=msg; el.className='toast show'+(type==='err'?' err':'');
-  clearTimeout(toastT); toastT=setTimeout(()=>el.classList.remove('show'),3500);
+  el.textContent=msg;el.className='toast show'+(type==='err'?' err':'');
+  clearTimeout(toastT);toastT=setTimeout(()=>el.classList.remove('show'),3500);
 }
-let dlgCb;
 function showDlg(title,msg,cb){
   document.getElementById('dlg-title').textContent=title;
   document.getElementById('dlg-msg').textContent=msg;
@@ -1282,20 +1329,31 @@ function showDlg(title,msg,cb){
 }
 function closeDlg(id){document.getElementById(id).classList.remove('show');}
 
+// ════════════════════════════════════════════
+// INIT
+// ════════════════════════════════════════════
 (function init(){
   try{
     localStorage.setItem('__bt_test__','1');
     localStorage.removeItem('__bt_test__');
     LS_AVAILABLE=true;
     const saved=JSON.parse(localStorage.getItem(SK)||'null');
-    if(saved&&Array.isArray(saved.files)) MEM_STORE=saved;
-  }catch(e){ LS_AVAILABLE=false; }
+    if(saved&&Array.isArray(saved.files))MEM_STORE=saved;
+    const rawSession=localStorage.getItem(SB_SESSION_KEY);
+    if(rawSession)SUPABASE_SESSION=JSON.parse(rawSession);
+  }catch(e){LS_AVAILABLE=false;}
   const d=new Date();
-  document.getElementById('nav-date').innerHTML=
-    '<span>'+d.toLocaleDateString('es-CL',{weekday:'long',day:'2-digit',month:'long'})+'</span>';
+  const navEl=document.getElementById('nav-date');
+  if(navEl)navEl.innerHTML='<span>'+d.toLocaleDateString('es-CL',{weekday:'long',day:'2-digit',month:'long'})+'</span>';
+  updateAuthUI();
+  loadSnapshot().then(snap=>{
+    if(snap&&snap.recepcion_despacho&&Array.isArray(snap.recepcion_despacho.files)){
+      MEM_STORE=snap.recepcion_despacho;
+      rebuildAll();
+    }
+  }).catch(()=>{});
   rebuildAll();
 })();
-
 </script>
 </body>
 </html>
