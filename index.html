@@ -14,8 +14,8 @@ body{background:#f0f2f5;color:#1a1d2e;font-family:'Segoe UI',system-ui,-apple-sy
 .header{background:#fff;border-bottom:1px solid #e2e6ea;padding:0 28px;display:flex;align-items:center;justify-content:space-between;gap:20px;min-height:64px}
 .header-brand{display:flex;align-items:center;gap:14px}
 .bt-logo{display:flex;align-items:center;gap:6px;text-decoration:none}
-.bt-logo-box{background:#f97316;border-radius:6px;padding:4px 8px;font-weight:900;font-size:13px;color:#fff;letter-spacing:-.5px;line-height:1.2}
-.bt-logo-text{font-size:12px;font-weight:600;color:#f97316;letter-spacing:-.3px}
+.bt-logo-box{background:#E8481A;border-radius:6px;padding:4px 8px;font-weight:900;font-size:13px;color:#fff;letter-spacing:-.5px;line-height:1.2}
+.bt-logo-text{font-size:12px;font-weight:600;color:#E8481A;letter-spacing:-.3px}
 .header-divider{width:1px;height:36px;background:#e2e6ea}
 .header-title h1{font-size:18px;font-weight:700;color:#1a1d2e;line-height:1.2}
 .header-title p{font-size:12px;color:#6c757d;margin-top:2px}
@@ -24,11 +24,11 @@ body{background:#f0f2f5;color:#1a1d2e;font-family:'Segoe UI',system-ui,-apple-sy
 .header-info span{color:#1a1d2e;font-weight:600}
 .btn{padding:7px 16px;border-radius:7px;font-size:13px;font-weight:600;border:none;cursor:pointer;transition:all .15s;display:inline-flex;align-items:center;gap:6px}
 .btn-outline{background:#fff;color:#1a1d2e;border:1px solid #dee2e6}
-.btn-outline:hover{border-color:#f97316;color:#f97316}
-.btn-primary{background:#1e3a8a;color:#fff}
-.btn-primary:hover{background:#1e40af}
-.btn-orange{background:#f97316;color:#fff}
-.btn-orange:hover{background:#ea6c10}
+.btn-outline:hover{border-color:#E8481A;color:#E8481A}
+.btn-primary{background:#1D1D1B;color:#fff}
+.btn-primary:hover{background:#333333}
+.btn-orange{background:#E8481A;color:#fff}
+.btn-orange:hover{background:#c73a10}
 .btn-sm{padding:5px 11px;font-size:12px}
 .btn-danger{background:#fff;color:#dc2626;border:1px solid #fca5a5}
 .btn-danger:hover{background:#fef2f2}
@@ -37,14 +37,14 @@ body{background:#f0f2f5;color:#1a1d2e;font-family:'Segoe UI',system-ui,-apple-sy
 .tabs-bar{background:#fff;border-bottom:1px solid #e2e6ea;padding:0 28px;display:flex;gap:0}
 .tab{padding:14px 20px;font-size:13px;font-weight:600;color:#6c757d;cursor:pointer;border-bottom:2px solid transparent;transition:all .15s;white-space:nowrap;margin-bottom:-1px}
 .tab:hover{color:#1a1d2e}
-.tab.active{color:#1e3a8a;border-bottom-color:#1e3a8a}
+.tab.active{color:#E8481A;border-bottom-color:#E8481A}
 
 /* ── FILTER BAR ── */
 .filter-bar{background:#fff;border-bottom:1px solid #e2e6ea;padding:10px 28px;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
 .filter-group{display:flex;flex-direction:column;gap:3px}
 .filter-group label{font-size:11px;font-weight:600;color:#6c757d;text-transform:uppercase;letter-spacing:.05em}
 .filter-group select,.filter-group input{background:#fff;border:1px solid #dee2e6;color:#1a1d2e;border-radius:6px;padding:5px 10px;font-size:13px;outline:none;transition:border-color .15s;cursor:pointer}
-.filter-group select:focus,.filter-group input:focus{border-color:#1e3a8a}
+.filter-group select:focus,.filter-group input:focus{border-color:#E8481A}
 .btn-clear{align-self:flex-end;background:#fff;color:#6c757d;border:1px solid #dee2e6;border-radius:6px;padding:6px 14px;font-size:13px;font-weight:600;cursor:pointer;transition:all .15s}
 .btn-clear:hover{border-color:#dc2626;color:#dc2626}
 
@@ -79,8 +79,8 @@ body{background:#f0f2f5;color:#1a1d2e;font-family:'Segoe UI',system-ui,-apple-sy
 
 /* ── COLLAPSIBLE NODE DETAIL ── */
 .node-expand-btn{background:none;border:1px solid #dee2e6;border-radius:5px;padding:3px 8px;font-size:11px;font-weight:600;color:#6c757d;cursor:pointer;transition:all .15s}
-.node-expand-btn:hover{border-color:#1e3a8a;color:#1e3a8a}
-.node-expand-btn.open{border-color:#1e3a8a;color:#1e3a8a;background:#eff6ff}
+.node-expand-btn:hover{border-color:#E8481A;color:#E8481A}
+.node-expand-btn.open{border-color:#E8481A;color:#E8481A;background:#fff3f0}
 .node-detail-row{display:none;background:#f8f9fa}
 .node-detail-row.open{display:table-row}
 .node-detail-inner{padding:12px 16px}
@@ -88,7 +88,7 @@ body{background:#f0f2f5;color:#1a1d2e;font-family:'Segoe UI',system-ui,-apple-sy
 .node-detail-inner th{padding:6px 10px;text-align:left;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#6c757d;border-bottom:1px solid #e9ecef}
 .node-detail-inner td{padding:6px 10px;border-bottom:1px solid #f1f3f5;color:#1a1d2e}
 .node-detail-inner tr:last-child td{border-bottom:none}
-.fecha-chip{display:inline-block;background:#eff6ff;color:#1d4ed8;border-radius:4px;padding:2px 7px;font-size:11px;font-weight:600}
+.fecha-chip{display:inline-block;background:#fff3f0;color:#E8481A;border-radius:4px;padding:2px 7px;font-size:11px;font-weight:600}
 
 /* ── SUMMARY DUAL ── */
 .sc-divider{width:100%;height:1px;background:#f1f3f5;margin:10px 0}
@@ -120,24 +120,24 @@ table.nodes-table tr:hover td{background:#fafbfc}
 /* ── ORDERS TABLE ── */
 .toolbar{padding:12px 18px;border-bottom:1px solid #f1f3f5;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px}
 .search-input{background:#fff;border:1px solid #dee2e6;color:#1a1d2e;border-radius:6px;padding:6px 12px;font-size:13px;width:220px;outline:none}
-.search-input:focus{border-color:#1e3a8a}
+.search-input:focus{border-color:#E8481A}
 .filters-inline{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
 .f-sel{background:#fff;border:1px solid #dee2e6;color:#1a1d2e;border-radius:6px;padding:6px 10px;font-size:12px;outline:none;cursor:pointer}
-.f-sel:focus{border-color:#1e3a8a}
+.f-sel:focus{border-color:#E8481A}
 
 .table-scroll{overflow-x:auto;max-height:500px;overflow-y:auto}
 table.orders-table{width:100%;border-collapse:collapse;font-size:13px}
 table.orders-table thead{position:sticky;top:0;z-index:2}
 table.orders-table th{background:#f8f9fa;padding:9px 14px;text-align:left;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#6c757d;border-bottom:2px solid #e9ecef;white-space:nowrap;cursor:pointer;user-select:none}
 table.orders-table th:hover{color:#1a1d2e}
-table.orders-table th.s-asc::after{content:' ↑';color:#1e3a8a}
-table.orders-table th.s-desc::after{content:' ↓';color:#1e3a8a}
+table.orders-table th.s-asc::after{content:' ↑';color:#E8481A}
+table.orders-table th.s-desc::after{content:' ↓';color:#E8481A}
 table.orders-table td{padding:9px 14px;border-bottom:1px solid #f1f3f5;vertical-align:middle;white-space:nowrap}
 table.orders-table tr:hover td{background:#fafbfc}
 table.orders-table tr:last-child td{border-bottom:none}
 .empty-row-msg td{text-align:center;padding:52px;color:#adb5bd}
 .empty-row-msg span{display:block;font-size:30px;opacity:.4;margin-bottom:8px}
-.order-id{font-family:'Courier New',monospace;font-weight:700;font-size:12px;color:#1e3a8a}
+.order-id{font-family:'Courier New',monospace;font-weight:700;font-size:12px;color:#E8481A}
 
 /* ── BADGES ── */
 .badge{display:inline-block;padding:3px 8px;border-radius:20px;font-size:11px;font-weight:700;white-space:nowrap}
@@ -166,7 +166,7 @@ table.orders-table tr:last-child td{border-bottom:none}
 /* ── UPLOAD TAB ── */
 .upload-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:28px}
 .dropzone{background:#fff;border:2px dashed #dee2e6;border-radius:10px;padding:24px;text-align:center;cursor:pointer;transition:all .15s;position:relative}
-.dropzone:hover,.dropzone.drag{border-color:#f97316;background:#fff7ed}
+.dropzone:hover,.dropzone.drag{border-color:#E8481A;background:#fff3f0}
 .dropzone.loaded{border-color:#16a34a;border-style:solid;background:#f0fdf4}
 .dropzone input[type=file]{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%}
 .dz-type-badge{display:inline-block;padding:2px 8px;border-radius:20px;font-size:10px;font-weight:700;text-transform:uppercase;margin-bottom:10px}
@@ -506,19 +506,17 @@ table.files-table tr:last-child td{border-bottom:none}
   <!-- AUTH PANEL -->
   <div id="authPanel" style="margin-bottom:20px"></div>
 
-  <!-- LOCK OVERLAY (visible cuando no hay sesión) -->
-  <div id="cargar-overlay" style="display:flex;position:absolute;inset:0;z-index:10;align-items:center;justify-content:center;background:rgba(255,255,255,0.5);border-radius:10px;pointer-events:none">
-    <div style="background:#fff;border:2px solid #dee2e6;border-radius:12px;padding:32px 40px;text-align:center;box-shadow:0 8px 32px rgba(0,0,0,0.1)">
-      <div style="font-size:40px;margin-bottom:12px">🔒</div>
-      <div style="font-size:16px;font-weight:700;margin-bottom:6px">Acceso restringido</div>
-      <div style="font-size:13px;color:#6c757d">Iniciá sesión arriba para cargar y gestionar archivos</div>
-    </div>
-  </div>
-
-  <!-- Contenido bloqueado hasta login -->
-  <div id="cargar-lockable" style="position:relative">
+  <!-- Área de carga — bloqueada hasta login -->
   <div style="margin-bottom:20px">
     <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#6c757d;margin-bottom:12px;display:flex;align-items:center;gap:8px">Subir nuevo archivo <span style="flex:1;height:1px;background:#e2e6ea;display:block"></span></div>
+    <div id="upload-lock-wrap" style="position:relative">
+    <div id="upload-lock-overlay" style="display:none;position:absolute;inset:0;z-index:5;background:rgba(255,255,255,0.75);border-radius:10px;align-items:center;justify-content:center">
+      <div style="background:#fff;border:1px solid #dee2e6;border-radius:10px;padding:20px 32px;text-align:center;box-shadow:0 4px 16px rgba(0,0,0,0.08)">
+        <div style="font-size:28px;margin-bottom:6px">🔒</div>
+        <div style="font-size:14px;font-weight:700;margin-bottom:4px">Iniciá sesión para cargar</div>
+        <div style="font-size:12px;color:#6c757d">Solo el administrador puede subir archivos</div>
+      </div>
+    </div>
     <div class="upload-grid">
       <div class="dropzone" id="dz-troncal"
         ondragover="dzOver(event,this)" ondragleave="dzOut(this)" ondrop="dzDrop(event,'troncal',this)">
@@ -551,6 +549,7 @@ table.files-table tr:last-child td{border-bottom:none}
         <div class="dz-status-pending">Sheet: PdE</div>
       </div>
     </div>
+    </div><!-- /upload-lock-wrap -->
   </div>
 
   <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#6c757d;margin-bottom:12px;display:flex;align-items:center;gap:8px">Archivos guardados <span style="flex:1;height:1px;background:#e2e6ea;display:block"></span></div>
@@ -689,18 +688,17 @@ function save(s){
 // AUTH UI
 // ════════════════════════════════════════════
 function lockCargarContent(locked){
-  const content=document.getElementById('cargar-lockable');
-  const overlay=document.getElementById('cargar-overlay');
-  if(!content||!overlay)return;
-  if(locked){
-    content.style.opacity='0.35';
-    content.style.pointerEvents='none';
-    overlay.style.display='flex';
-  }else{
-    content.style.opacity='1';
-    content.style.pointerEvents='';
-    overlay.style.display='none';
-  }
+  // Solo bloquea el área de upload — la lista de archivos siempre visible
+  const uploadOverlay=document.getElementById('upload-lock-overlay');
+  if(uploadOverlay) uploadOverlay.style.display=locked?'flex':'none';
+  // Ocultar botones de gestión (eliminar) cuando no hay sesión
+  const mgmtBtns=document.querySelectorAll('.btn-danger, #btn-del-day, #btn-del-all');
+  mgmtBtns.forEach(b=>{
+    if(b.closest('#files-tbody'))b.style.display=locked?'none':'';
+  });
+  // Botones de eliminar en header del panel
+  const filePanelBtns=document.querySelectorAll('.files-panel-header .btn-group button');
+  filePanelBtns.forEach(b=>b.style.display=locked?'none':'');
 }
 
 function updateAuthUI(){
