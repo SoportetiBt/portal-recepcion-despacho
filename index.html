@@ -3,6 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:ital,wght@1,800;1,900&display=swap" rel="stylesheet">
 <title>Portal Recepción y Despacho — Canon & Rosen</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
@@ -11,11 +12,9 @@
 body{background:#f0f2f5;color:#1a1d2e;font-family:'Segoe UI',system-ui,-apple-system,sans-serif;font-size:14px;min-height:100vh}
 
 /* ── HEADER ── */
-.header{background:#fff;border-bottom:1px solid #e2e6ea;padding:0 28px;display:flex;align-items:center;justify-content:space-between;gap:20px;min-height:64px}
+.header{background:#fff;border-bottom:3px solid #E8481A;padding:0 28px;display:flex;align-items:center;justify-content:space-between;gap:20px;min-height:64px}
 .header-brand{display:flex;align-items:center;gap:14px}
-.bt-logo{display:flex;align-items:center;gap:6px;text-decoration:none}
-.bt-logo-box{background:#E8481A;border-radius:6px;padding:4px 8px;font-weight:900;font-size:13px;color:#fff;letter-spacing:-.5px;line-height:1.2}
-.bt-logo-text{font-size:12px;font-weight:600;color:#E8481A;letter-spacing:-.3px}
+/* logo rediseñado inline */
 .header-divider{width:1px;height:36px;background:#e2e6ea}
 .header-title h1{font-size:18px;font-weight:700;color:#1a1d2e;line-height:1.2}
 .header-title p{font-size:12px;color:#6c757d;margin-top:2px}
@@ -210,11 +209,14 @@ table.files-table tr:last-child td{border-bottom:none}
 <!-- ══════════ HEADER ══════════ -->
 <header class="header">
   <div class="header-brand">
-    <a class="bt-logo" href="#">
-      <div class="bt-logo-box">big<br>ticket</div>
-      <div class="bt-logo-text">bigticket</div>
+    <!-- Logo BigTicket tipográfico -->
+    <a href="#" style="text-decoration:none;display:flex;flex-direction:column;line-height:1">
+      <div style="display:flex;align-items:baseline;gap:0">
+        <span style="font-family:'Barlow Condensed','Arial Black',Impact,sans-serif;font-style:italic;font-weight:900;font-size:42px;color:#E8481A;letter-spacing:-1px;line-height:1">big</span><span style="font-family:'Barlow Condensed','Arial Black',Impact,sans-serif;font-style:italic;font-weight:900;font-size:42px;color:#1D1D1B;letter-spacing:-1px;line-height:1">ticket</span>
+      </div>
+      <div style="font-family:'Arial',sans-serif;font-weight:700;font-size:8.5px;letter-spacing:.22em;color:#1D1D1B;text-transform:uppercase;margin-top:1px;padding-left:2px">Logística y Transporte</div>
     </a>
-    <div class="header-divider"></div>
+    <div class="header-divider" style="height:48px;margin:0 20px"></div>
     <div class="header-title">
       <h1>Portal de Recepción y Despacho</h1>
       <p>Canon (RM, V Región) · Rosen (V Región, IV Coquimbo)</p>
