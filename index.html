@@ -348,16 +348,36 @@ table.files-table tr:last-child td{border-bottom:none}
   <div class="panel">
     <div class="panel-header">
       <div><div class="panel-title">Detalle de órdenes — Recepción</div></div>
-      <div class="panel-actions">
+      <div class="panel-actions" style="flex-wrap:wrap;gap:8px">
+        <!-- Toggle Detalle / Totalizado -->
+        <div style="display:flex;gap:0;border:1px solid #dee2e6;border-radius:7px;overflow:hidden">
+          <button id="btn-detalle" onclick="setRecView('detalle')"
+            style="padding:6px 14px;font-size:12px;font-weight:700;border:none;cursor:pointer;background:#E8481A;color:#fff">Detalle</button>
+          <button id="btn-totalizado" onclick="setRecView('totalizado')"
+            style="padding:6px 14px;font-size:12px;font-weight:700;border:none;cursor:pointer;background:#fff;color:#6c757d">Totalizado</button>
+        </div>
         <span class="row-count-lbl" id="count-rec">0 registros</span>
-        <input class="search-input" id="src-rec" placeholder="🔍 Buscar orden o cliente..." oninput="renderRecTable()">
+        <input class="search-input" id="src-rec" placeholder="🔍 Buscar orden o cliente..." oninput="renderRecTable()" style="width:180px">
         <select class="f-sel" id="fsel-rec-nodo" onchange="renderRecTable()">
           <option value="">Todos los nodos</option>
           <option value="C_RM">C_RM</option><option value="C_VIÑA">C_VIÑA</option>
         </select>
       </div>
     </div>
-    <div class="table-scroll">
+    <!-- Vista Totalizado por fecha de compromiso -->
+    <div id="rec-totalizado-view" style="display:none">
+      <table class="nodes-table">
+        <thead><tr>
+          <th>Nodo</th>
+          <th>Fecha Compromiso</th>
+          <th style="text-align:right">Órdenes</th>
+          <th style="text-align:right">Vol m³</th>
+          <th style="text-align:right">Peso kg</th>
+        </tr></thead>
+        <tbody id="tbody-rec-total"><tr><td colspan="5" style="text-align:center;padding:24px;color:#adb5bd">Cambiá a "Totalizado" para ver el resumen por fecha</td></tr></tbody>
+      </table>
+    </div>
+    <div class="table-scroll" id="rec-detalle-scroll">
       <table class="orders-table">
         <thead><tr>
           <th onclick="srt('rec',0)">N° Orden</th>
@@ -1167,6 +1187,72 @@ function renderCharts(desRows){
 // ORDER TABLES
 // ════════════════════════════════════════════
 const recKeys=['orden','cliente','nodo','region','fechaMin','fechaMax','volumen','peso'];
+let recViewMode='detalle';
+
+function setRecView(mode){
+  recViewMode=mode;
+  // Actualizar estilos de los botones toggle
+  const btnD=document.getElementById('btn-detalle');
+  const btnT=document.getElementById('btn-totalizado');
+  if(btnD&&btnT){
+    btnD.style.background=mode==='detalle'?'#E8481A':'#fff';
+    btnD.style.color=mode==='detalle'?'#fff':'#6c757d';
+    btnT.style.background=mode==='totalizado'?'#E8481A':'#fff';
+    btnT.style.color=mode==='totalizado'?'#fff':'#6c757d';
+  }
+  const detailView=document.getElementById('rec-detalle-scroll');
+  const totalView=document.getElementById('rec-totalizado-view');
+  const toolbar=document.getElementById('src-rec');
+  if(mode==='totalizado'){
+    if(detailView)detailView.style.display='none';
+    if(totalView)totalView.style.display='block';
+    renderRecTotalizado();
+  }else{
+    if(detailView)detailView.style.display='';
+    if(totalView)totalView.style.display='none';
+    renderRecTable();
+  }
+}
+
+function renderRecTotalizado(){
+  const rows=getRecRows().filter(matchGF);
+  const nodoFilter=document.getElementById('fsel-rec-nodo').value;
+  const search=(document.getElementById('src-rec').value||'').toLowerCase();
+  const filtered=rows.filter(r=>{
+    if(nodoFilter&&r.nodo!==nodoFilter)return false;
+    if(search&&!r.orden.toLowerCase().includes(search)&&!r.cliente.toLowerCase().includes(search))return false;
+    return true;
+  });
+  // Agrupar por nodo + fecha
+  const groups={};
+  filtered.forEach(r=>{
+    const key=r.nodo+'||'+(r.fechaMin||'Sin fecha');
+    if(!groups[key])groups[key]={nodo:r.nodo,fecha:r.fechaMin||'Sin fecha',count:0,vol:0,peso:0};
+    groups[key].count++;
+    groups[key].vol+=r.volumen;
+    groups[key].peso+=r.peso;
+  });
+  // Ordenar: por nodo, luego fecha
+  const sorted=Object.values(groups).sort((a,b)=>{
+    if(a.nodo!==b.nodo)return a.nodo.localeCompare(b.nodo);
+    const toIso=f=>{const p=f.split('/');return p.length===3?`${p[2]}-${p[1]}-${p[0]}`:f;};
+    return toIso(a.fecha).localeCompare(toIso(b.fecha));
+  });
+  document.getElementById('count-rec').textContent=fmtNum(sorted.length)+' grupos';
+  const tbody=document.getElementById('tbody-rec-total');
+  if(!sorted.length){tbody.innerHTML='<tr><td colspan="5" style="text-align:center;padding:32px;color:#adb5bd">Sin datos</td></tr>';return;}
+  let lastNodo='';
+  tbody.innerHTML=sorted.map(g=>{
+    const isNewNodo=g.nodo!==lastNodo;lastNodo=g.nodo;
+    return`<tr style="${isNewNodo?'border-top:2px solid #e2e6ea':''}">
+      <td class="node-name-cell">${isNewNodo?`<span class="badge ${NODO_CSS[g.nodo]||''}">${g.nodo}</span>`:''}</td>
+      <td><span class="fecha-chip">${g.fecha}</span></td>
+      <td class="num-cell" style="font-weight:700">${fmtNum(g.count)}</td>
+      <td class="num-cell">${g.vol>0?fmtNum(g.vol,2):'—'}</td>
+      <td class="num-cell">${g.peso>0?fmtNum(g.peso,1):'—'}</td>
+    </tr>`;
+  }).join('');
+}
 const desKeys=['orden','cliente','nodo','fuente','estado','subestado','region','items','volumen','peso'];
 const allKeys=['orden','cliente','nodo','fuente','estado','subestado','region','items','volumen','peso'];
 
