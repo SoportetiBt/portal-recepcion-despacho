@@ -278,7 +278,6 @@ table.files-table tr:last-child td{border-bottom:none}
       <option value="Entregado">Entregado</option>
       <option value="No entregado">No entregado</option>
       <option value="Entrega parcial">Entrega parcial</option>
-      <option value="Ingresado al sistema">Pendiente troncal</option>
     </select>
   </div>
   <div class="filter-group">
@@ -1050,8 +1049,13 @@ function clearFilters(){
 }
 function gfActive(){return!!(gf.fechaDesde||gf.fechaHasta||gf.operacion||gf.nodo||gf.estado||gf.stock);}
 function matchGF(r){
-  if(gf.fechaDesde&&r.dateStr<gf.fechaDesde)return false;  // rango: dateStr es YYYY-MM-DD, comparación lexicográfica
-  if(gf.fechaHasta&&r.dateStr>gf.fechaHasta)return false;
+  // Fechas (dateStr es YYYY-MM-DD, comparación lexicográfica):
+  //  - una sola fecha elegida → ese día exacto
+  //  - ambas elegidas → rango Desde–Hasta
+  const fd=gf.fechaDesde,fh=gf.fechaHasta;
+  if(fd&&fh){ if(r.dateStr<fd||r.dateStr>fh)return false; }
+  else if(fd){ if(r.dateStr!==fd)return false; }
+  else if(fh){ if(r.dateStr!==fh)return false; }
   if(gf.nodo&&r.nodo!==gf.nodo)return false;
   if(gf.estado&&r.estado!==gf.estado)return false;
   if(gf.operacion){
