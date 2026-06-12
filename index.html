@@ -1226,8 +1226,14 @@ function renderDesNodesTable(desRows){
   }
   const rows=desRows.filter(matchGF);
   const dBody=document.getElementById('nt-des-body');
-  if(!rows.length){dBody.innerHTML='<tr><td colspan="6" style="text-align:center;padding:24px;color:#adb5bd">Sin datos de despacho</td></tr>';return;}
   const desBody=document.getElementById('tbody-des-nodes');
+  if(!rows.length){
+    // Sin despacho para el filtro: limpiar AMBAS tablas (antes solo se limpiaba la del Resumen
+    // y se hacía return, dejando la de la pestaña Despacho con datos viejos).
+    if(dBody)dBody.innerHTML='<tr><td colspan="6" style="text-align:center;padding:24px;color:#adb5bd">Sin datos de despacho para el filtro</td></tr>';
+    if(desBody)desBody.innerHTML='<tr><td colspan="7" style="text-align:center;padding:24px;color:#adb5bd">Sin datos de despacho para el filtro</td></tr>';
+    return;
+  }
   // #11: dos tablas con DISTINTO número de columnas comparten estos datos:
   //  - Resumen (nt-des-body): 6 col, SIN "Parciales".
   //  - Despacho (tbody-des-nodes): 7 col, CON "Parciales".
