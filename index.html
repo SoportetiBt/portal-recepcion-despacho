@@ -1107,7 +1107,7 @@ function renderSummaryCards(){
     const desNo=desRows.filter(r=>r.estado==='No entregado').length;
     const desPar=desRows.filter(r=>r.estado==='Entrega parcial').length;
     const desPen=desRows.filter(r=>!['Entregado','No entregado','Entrega parcial'].includes(r.estado)).length;
-    const desPct=desTotal>0?Math.round(desEnt/desTotal*100):0;
+    const desPct=desTotal>0?desEnt/desTotal*100:0;
     el.innerHTML=hdr+`
       ${recRows.length?`
       <div class="sc-section-lbl">Recepción troncal</div>
@@ -1126,8 +1126,8 @@ function renderSummaryCards(){
         <div><div class="sc-kpi-val" style="color:#f97316;font-size:18px">${fmtNum(desPar)}</div><div class="sc-kpi-lbl">Ent. parcial</div></div>
         <div><div class="sc-kpi-val" style="color:#9ca3af;font-size:18px">${fmtNum(desPen)}</div><div class="sc-kpi-lbl">Pendiente</div></div>
       </div>
-      <div class="sc-bar"><div class="sc-bar-fill" style="width:${desPct}%;background:${desPct>=90?'#16a34a':desPct>=70?'#d97706':'#f97316'}"></div></div>
-      <div class="sc-bar-meta"><span style="font-weight:600">${fmtNum(desTotal)} órdenes · efectividad</span><span style="font-weight:700;color:${desPct>=90?'#16a34a':desPct>=70?'#d97706':'#dc2626'}">${desPct}%</span></div>`
+      <div class="sc-bar"><div class="sc-bar-fill" style="width:${Math.min(desPct,100)}%;background:${desPct>=90?'#16a34a':desPct>=70?'#d97706':'#f97316'}"></div></div>
+      <div class="sc-bar-meta"><span style="font-weight:600">${fmtNum(desTotal)} órdenes · efectividad</span><span style="font-weight:700;color:${desPct>=90?'#16a34a':desPct>=70?'#d97706':'#dc2626'}">${pctLbl(desPct)}</span></div>`
       :'<div class="sc-divider"></div><div class="sc-section-lbl" style="color:#adb5bd">Sin datos despacho</div>'}`;
   });
 }
@@ -1135,8 +1135,11 @@ function renderSummaryCards(){
 // ════════════════════════════════════════════
 // NODE TABLES
 // ════════════════════════════════════════════
-function pctBar(pct,color){
-  return`<div class="pct-wrap"><div class="pct-bar"><div class="pct-fill" style="width:${pct}%;background:${color}"></div></div><span class="pct-val" style="color:${color};font-weight:700">${pct}%</span></div>`;
+// Etiqueta de %: 2 decimales salvo cuando es 100% (queda redondo).
+function pctLbl(p){return(p>=100?'100':p.toFixed(2))+'%';}
+function pctBar(pct,color,label){
+  const txt=label!=null?label:pctLbl(pct);
+  return`<div class="pct-wrap"><div class="pct-bar"><div class="pct-fill" style="width:${Math.min(pct,100)}%;background:${color}"></div></div><span class="pct-val" style="color:${color};font-weight:700">${txt}</span></div>`;
 }
 
 function renderRecNodesTable(recRows){
@@ -1245,7 +1248,7 @@ function renderDesNodesTable(desRows){
     const ent=nr.filter(r=>r.estado==='Entregado').length;
     const noE=nr.filter(r=>r.estado==='No entregado').length;
     const par=nr.filter(r=>r.estado==='Entrega parcial').length;
-    const efect=Math.round(ent/total*100);
+    const efect=total?ent/total*100:0;
     const vol=nr.reduce((s,r)=>s+r.volumen,0);
     const color=efect>=90?'#16a34a':efect>=70?'#d97706':'#f97316';
     return`<tr>
@@ -1275,8 +1278,8 @@ function renderCharts(desRows){
     const total=rows.length;
     const cnt=Object.fromEntries(CHART_ESTADOS.map(e=>[e,0]));
     rows.forEach(r=>{if(cnt.hasOwnProperty(r.estado))cnt[r.estado]++;});
-    const pct=Math.round((cnt['Entregado']||0)/total*100);
-    lEl.querySelector('.pct').textContent=pct+'%';
+    const pct=(cnt['Entregado']||0)/total*100;
+    lEl.querySelector('.pct').textContent=pctLbl(pct);
     charts[nodo]=new Chart(canvas,{
       type:'doughnut',
       data:{labels:CHART_ESTADOS,datasets:[{data:CHART_ESTADOS.map(e=>cnt[e]),backgroundColor:CHART_COLORS,borderWidth:0,hoverOffset:4}]},
