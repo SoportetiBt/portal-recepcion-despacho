@@ -529,7 +529,7 @@ table.files-table tr:last-child td{border-bottom:none}
   <div id="authPanel" style="margin-bottom:20px"></div>
 
   <!-- Área de carga — bloqueada hasta login -->
-  <div style="margin-bottom:20px">
+  <div id="cargar-upload-section" style="margin-bottom:20px">
     <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#6c757d;margin-bottom:12px;display:flex;align-items:center;gap:8px">Subir nuevo archivo <span style="flex:1;height:1px;background:#e2e6ea;display:block"></span></div>
     <div id="upload-lock-wrap" style="position:relative">
     <div id="upload-lock-overlay" style="display:none;position:absolute;inset:0;z-index:5;background:rgba(255,255,255,0.75);border-radius:10px;align-items:center;justify-content:center">
@@ -574,8 +574,8 @@ table.files-table tr:last-child td{border-bottom:none}
     </div><!-- /upload-lock-wrap -->
   </div>
 
-  <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#6c757d;margin-bottom:12px;display:flex;align-items:center;gap:8px">Archivos guardados <span style="flex:1;height:1px;background:#e2e6ea;display:block"></span></div>
-  <div class="files-panel">
+  <div id="cargar-files-label" style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#6c757d;margin-bottom:12px;display:flex;align-items:center;gap:8px">Archivos guardados <span style="flex:1;height:1px;background:#e2e6ea;display:block"></span></div>
+  <div class="files-panel" id="cargar-files-section">
     <div class="files-panel-header">
       <h3>Historial de archivos cargados</h3>
       <div class="btn-group">
@@ -651,8 +651,32 @@ function sbHeaders(useToken=false){
   return{'apikey':SUPABASE_KEY,'Authorization':'Bearer '+token,'Content-Type':'application/json'};
 }
 function isAuth(){return!!(SUPABASE_SESSION&&SUPABASE_SESSION.access_token);}
+// Sesión realmente usable = hay token Y no está vencido. Evita el falso "Sesión activa".
+function isAuthValid(){return isAuth()&&!sbExpired();}
 function currentUser(){return(SUPABASE_SESSION&&SUPABASE_SESSION.user&&SUPABASE_SESSION.user.email)||'';}
 function persistSbSession(){try{if(SUPABASE_SESSION)localStorage.setItem(SB_SESSION_KEY,JSON.stringify(SUPABASE_SESSION));else localStorage.removeItem(SB_SESSION_KEY);}catch(e){}}
+
+// ── Manejo de vencimiento / refresco de token ──
+function sbExpiresAtMs(){return(SUPABASE_SESSION&&SUPABASE_SESSION.expires_at)?SUPABASE_SESSION.expires_at*1000:0;}
+function sbExpired(skewMs=60000){const exp=sbExpiresAtMs();if(!exp)return false;return Date.now()>=(exp-skewMs);}
+async function sbRefresh(){
+  if(!SUPABASE_SESSION||!SUPABASE_SESSION.refresh_token)return false;
+  try{
+    const r=await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=refresh_token`,{
+      method:'POST',headers:{'apikey':SUPABASE_KEY,'Content-Type':'application/json'},
+      body:JSON.stringify({refresh_token:SUPABASE_SESSION.refresh_token})
+    });
+    const data=await r.json();
+    if(!r.ok||!data.access_token){SUPABASE_SESSION=null;persistSbSession();return false;}
+    SUPABASE_SESSION=data;persistSbSession();return true;
+  }catch(e){return false;}
+}
+// Garantiza una sesión válida; refresca si está por vencer. Devuelve true si quedó usable.
+async function ensureValidSession(){
+  if(!isAuth())return false;
+  if(sbExpired()){const ok=await sbRefresh();updateAuthUI();return ok;}
+  return true;
+}
 
 async function sbSignIn(email,password){
   const r=await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=password`,{
@@ -669,20 +693,42 @@ async function sbSignOut(){
 }
 async function loadSnapshot(){
   try{
-    const r=await fetch(`${SUPABASE_URL}/rest/v1/portal_recepcion_snapshot?id=eq.1&select=data`,{headers:sbHeaders(false)});
+    const r=await fetch(`${SUPABASE_URL}/rest/v1/portal_recepcion_snapshot?id=eq.1&select=data,updated_at`,{headers:sbHeaders(false)});
     if(!r.ok)return null;
     const rows=await r.json();
     if(!rows.length||!rows[0].data)return null;
-    return rows[0].data;
+    return {data:rows[0].data, updatedAt:rows[0].updated_at};
   }catch(e){return null;}
 }
-async function saveSnapshot(data){
-  if(!isAuth())return;
-  await fetch(`${SUPABASE_URL}/rest/v1/portal_recepcion_snapshot?id=eq.1`,{
-    method:'PATCH',
-    headers:{...sbHeaders(true),'Prefer':'return=minimal'},
-    body:JSON.stringify({data,updated_by:currentUser(),updated_at:new Date().toISOString()})
+async function saveSnapshot(data,updatedAt){
+  if(!isAuth()){
+    toast('🔒 Sin sesión: los cambios quedaron SOLO en este equipo, no en la nube.','err');
+    return false;
+  }
+  const ok=await ensureValidSession();
+  if(!ok){
+    toast('⚠️ Tu sesión venció. Los datos NO se guardaron en la nube — iniciá sesión de nuevo.','err');
+    return false;
+  }
+  const body=JSON.stringify({data,updated_by:currentUser(),updated_at:updatedAt||new Date().toISOString()});
+  const doPatch=()=>fetch(`${SUPABASE_URL}/rest/v1/portal_recepcion_snapshot?id=eq.1`,{
+    method:'PATCH',headers:{...sbHeaders(true),'Prefer':'return=minimal'},body
   });
+  try{
+    let r=await doPatch();
+    if(r.status===401){ // token rechazado → refrescar una vez y reintentar
+      const ref=await sbRefresh();updateAuthUI();
+      if(ref)r=await doPatch();
+    }
+    if(!r.ok){
+      toast('⚠️ No se pudo guardar en la nube ('+r.status+'). Datos solo en este equipo.','err');
+      return false;
+    }
+    return true;
+  }catch(e){
+    toast('⚠️ Error de red al guardar en la nube. Datos solo en este equipo.','err');
+    return false;
+  }
 }
 
 const NODES=['C_RM','C_VIÑA','R_VIÑA','R_SERENA'];
@@ -701,32 +747,38 @@ const charts={};
 // ════════════════════════════════════════════
 function load(){return MEM_STORE;}
 function save(s){
+  s.updatedAt=new Date().toISOString();   // marca de tiempo para resolver nube vs local
   MEM_STORE=s;
   if(LS_AVAILABLE){try{localStorage.setItem(SK,JSON.stringify(s));}catch(e){}}
-  if(isAuth())saveSnapshot({recepcion_despacho:s}).catch(e=>console.warn('Supabase save:',e));
+  if(isAuth())saveSnapshot({recepcion_despacho:s},s.updatedAt).catch(e=>console.warn('Supabase save:',e));
+}
+// Decide si aplicar el snapshot de la nube o conservar lo local.
+// NO pisa datos locales más nuevos con una versión más vieja de la nube. Devuelve 'cloud' | 'local'.
+function applyCloudSnapshot(snap){
+  const hasCloud=snap&&snap.data&&snap.data.recepcion_despacho&&Array.isArray(snap.data.recepcion_despacho.files);
+  if(!hasCloud)return 'local';
+  const localHas=MEM_STORE&&Array.isArray(MEM_STORE.files)&&MEM_STORE.files.length>0;
+  const localTime=(MEM_STORE&&MEM_STORE.updatedAt)?Date.parse(MEM_STORE.updatedAt):0;
+  const cloudTime=snap.updatedAt?Date.parse(snap.updatedAt):0;
+  if(localHas&&localTime>cloudTime)return 'local';   // local más nuevo → no pisar
+  MEM_STORE=snap.data.recepcion_despacho;
+  return 'cloud';
 }
 
 // ════════════════════════════════════════════
 // AUTH UI
 // ════════════════════════════════════════════
 function lockCargarContent(locked){
-  // Solo bloquea el área de upload — la lista de archivos siempre visible
-  const uploadOverlay=document.getElementById('upload-lock-overlay');
-  if(uploadOverlay) uploadOverlay.style.display=locked?'flex':'none';
-  // Ocultar botones de gestión (eliminar) cuando no hay sesión
-  const mgmtBtns=document.querySelectorAll('.btn-danger, #btn-del-day, #btn-del-all');
-  mgmtBtns.forEach(b=>{
-    if(b.closest('#files-tbody'))b.style.display=locked?'none':'';
-  });
-  // Botones de eliminar en header del panel
-  const filePanelBtns=document.querySelectorAll('.files-panel-header .btn-group button');
-  filePanelBtns.forEach(b=>b.style.display=locked?'none':'');
+  // #5: sin sesión válida, en el tab "Cargar Archivos" se ve SOLO el login (modelo Planificación).
+  // Ocultamos zona de carga, etiqueta e historial de archivos.
+  const ids=['cargar-upload-section','cargar-files-label','cargar-files-section'];
+  ids.forEach(id=>{const el=document.getElementById(id);if(el)el.style.display=locked?'none':'';});
 }
 
 function updateAuthUI(){
   const panel=document.getElementById('authPanel');
   if(!panel)return;
-  if(isAuth()){
+  if(isAuthValid()){
     panel.innerHTML=`
       <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;background:#f0fdf4;border:1px solid #86efac;padding:12px 16px;border-radius:8px">
         <span style="font-size:13px"><strong>✓ Sesión activa:</strong> ${currentUser()} — podés cargar y guardar archivos</span>
@@ -763,10 +815,13 @@ async function doSignIn(){
     updateAuthUI();
     toast('✓ Sesión iniciada — '+currentUser());
     const snap=await loadSnapshot();
-    if(snap&&snap.recepcion_despacho&&Array.isArray(snap.recepcion_despacho.files)){
-      MEM_STORE=snap.recepcion_despacho;
+    const res=applyCloudSnapshot(snap);
+    if(res==='cloud'){
       rebuildAll();
       toast('✓ Datos sincronizados desde Supabase');
+    }else if(snap&&snap.data){ // local más nuevo que la nube → subir lo local
+      toast('Tus datos locales son más nuevos; subiéndolos a la nube…');
+      save(MEM_STORE);
     }
   }catch(e){
     if(errEl){errEl.style.display='block';errEl.textContent=e.message;}
@@ -897,11 +952,11 @@ function dzOver(e,el){
 function dzOut(el){el.classList.remove('drag')}
 function dzDrop(e,t,el){
   e.preventDefault();el.classList.remove('drag');
-  if(!isAuth()){toast('🔒 Iniciá sesión para cargar archivos','err');return;}
+  if(!isAuthValid()){toast('🔒 Iniciá sesión para cargar archivos','err');return;}
   const f=e.dataTransfer.files[0];if(f)processFile(f,t,el);
 }
 function onFile(e,t,el){
-  if(!isAuth()){toast('🔒 Iniciá sesión para cargar archivos','err');return;}
+  if(!isAuthValid()){toast('🔒 Iniciá sesión para cargar archivos','err');return;}
   const f=e.target.files[0];if(f)processFile(f,t,el);
 }
 
@@ -1464,10 +1519,17 @@ function closeDlg(id){document.getElementById(id).classList.remove('show');}
   const navEl=document.getElementById('nav-date');
   if(navEl)navEl.innerHTML='<span>'+d.toLocaleDateString('es-CL',{weekday:'long',day:'2-digit',month:'long'})+'</span>';
   updateAuthUI();
-  loadSnapshot().then(snap=>{
-    if(snap&&snap.recepcion_despacho&&Array.isArray(snap.recepcion_despacho.files)){
-      MEM_STORE=snap.recepcion_despacho;
+  // Refresca el token si está vencido (corrige el falso "Sesión activa") y luego sincroniza.
+  ensureValidSession().then(()=>{
+    updateAuthUI();
+    return loadSnapshot();
+  }).then(snap=>{
+    const res=applyCloudSnapshot(snap);
+    if(res==='cloud'){
       rebuildAll();
+    }else if(snap&&snap.data){ // hay nube pero lo local es más nuevo → no pisar; subir si hay sesión
+      toast('⚠️ Datos locales más nuevos que la nube; no se sobreescribieron.','err');
+      if(isAuthValid())save(MEM_STORE);
     }
   }).catch(()=>{});
   rebuildAll();
