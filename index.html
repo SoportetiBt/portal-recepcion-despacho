@@ -881,8 +881,11 @@ function fmtDateCell(v){
 }
 
 function exDate(name){
-  const m=name.match(/(\d{2})[.\-_](\d{2})[.\-_](\d{4})/);
-  return m?`${m[3]}-${m[2]}-${m[1]}`:new Date().toISOString().slice(0,10);
+  let m=name.match(/(\d{2})[.\-_](\d{2})[.\-_](\d{4})/);   // DD.MM.AAAA
+  if(m)return`${m[3]}-${m[2]}-${m[1]}`;
+  m=name.match(/(\d{4})[.\-_](\d{2})[.\-_](\d{2})/);        // AAAA-MM-DD (ej. archivos Rosen)
+  if(m)return`${m[1]}-${m[2]}-${m[3]}`;
+  return new Date().toISOString().slice(0,10);
 }
 function ncNode(r){const v=cs(r).toLowerCase();return(v.includes('valpara')||v.includes('viña')||v.includes('vina'))?'C_VIÑA':'C_RM'}
 function nrNode(g,r){const v=cs(r).toLowerCase()+cs(g).toLowerCase();return(v.includes('coquimbo')||v.includes('serena'))?'R_SERENA':'R_VIÑA'}
@@ -995,7 +998,7 @@ function processFile(file,type,el){
       // #4: si ya existe un archivo con el mismo nombre, o del mismo tipo+fecha, lo REEMPLAZA
       // (evita duplicar y que m³/peso se disparen al sumar las copias).
       const before=s.files.length;
-      s.files=s.files.filter(f=>!(f.name===file.name||(f.type===type&&f.dateStr===dateStr)));
+      s.files=s.files.filter(f=>f.name!==file.name); // reemplaza SOLO si es el MISMO archivo (mismo nombre); distintos archivos coexisten
       const replaced=before-s.files.length;
       s.files.push(entry);
       save(s);
