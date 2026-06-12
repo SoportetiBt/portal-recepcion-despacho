@@ -477,9 +477,10 @@ table.files-table tr:last-child td{border-bottom:none}
           <th onclick="srt('des',7)" style="text-align:right">Ítems</th>
           <th onclick="srt('des',8)" style="text-align:right">Vol m³</th>
           <th onclick="srt('des',9)" style="text-align:right">Peso kg</th>
+          <th onclick="srt('des',10)">Fecha dato</th>
         </tr></thead>
         <tbody id="tbody-des-orders">
-          <tr class="empty-row-msg"><td colspan="10"><span>📂</span>Cargá los archivos de despacho en la pestaña "Cargar Archivos"</td></tr>
+          <tr class="empty-row-msg"><td colspan="11"><span>📂</span>Cargá los archivos de despacho en la pestaña "Cargar Archivos"</td></tr>
         </tbody>
       </table>
     </div>
@@ -1348,7 +1349,7 @@ function renderRecTotalizado(){
     </tr>`;
   }).join('');
 }
-const desKeys=['orden','cliente','nodo','fuente','estado','subestado','region','items','volumen','peso'];
+const desKeys=['orden','cliente','nodo','fuente','estado','subestado','region','items','volumen','peso','dateStr'];
 const allKeys=['orden','cliente','nodo','fuente','estado','subestado','region','items','volumen','peso','dateStr'];
 
 function badge(text,cls){return`<span class="badge ${cls||''}">${text||'—'}</span>`}
@@ -1373,20 +1374,31 @@ function doSort(rows,col,dir,keys){
 }
 
 function renderRecTable(){
-  const rows=doSort(filterRows(getRecRows(),
-    document.getElementById('src-rec').value,
-    document.getElementById('fsel-rec-nodo').value,
-    '',null),sortState.rec.col,sortState.rec.dir,recKeys);
-  document.getElementById('count-rec').textContent=fmtNum(rows.length)+' registros';
   const tbody=document.getElementById('tbody-rec-orders');
-  if(!rows.length){tbody.innerHTML=`<tr class="empty-row-msg"><td colspan="8"><span>${getRecRows().length?'🔍':'📂'}</span>${getRecRows().length?'Sin coincidencias':'Cargá el Troncal Canon'}</td></tr>`;return;}
-  tbody.innerHTML=rows.map(r=>`<tr>
+  const cnt=document.getElementById('count-rec');
+  const total=getRecRows().length;
+  const search=document.getElementById('src-rec').value;
+  const fNodo=document.getElementById('fsel-rec-nodo').value;
+  if(!total){cnt.textContent='0 registros';tbody.innerHTML=`<tr class="empty-row-msg"><td colspan="8"><span>📂</span>Cargá el Troncal Canon</td></tr>`;return;}
+  const hasFilter=!!(search||fNodo)||gfActive();
+  // Igual que Detalle Órdenes / Despacho: el detalle queda vacío hasta filtrar/buscar.
+  if(!hasFilter){
+    cnt.textContent=fmtNum(total)+' en total';
+    tbody.innerHTML=`<tr class="empty-row-msg"><td colspan="8"><span>🔎</span>Aplicá un filtro o buscá arriba para ver las órdenes (${fmtNum(total)} en total)</td></tr>`;
+    return;
+  }
+  const rows=doSort(filterRows(getRecRows(),search,fNodo,'',null),sortState.rec.col,sortState.rec.dir,recKeys);
+  if(!rows.length){cnt.textContent='0 registros';tbody.innerHTML=`<tr class="empty-row-msg"><td colspan="8"><span>🔍</span>Sin coincidencias</td></tr>`;return;}
+  const shown=rows.slice(0,ALL_CAP);
+  cnt.textContent=rows.length>ALL_CAP?`${fmtNum(ALL_CAP)} de ${fmtNum(rows.length)}`:fmtNum(rows.length)+' registros';
+  tbody.innerHTML=shown.map(r=>`<tr>
     <td class="order-id">${r.orden}</td><td>${r.cliente}</td><td>${nodoBadge(r.nodo)}</td>
     <td>${r.region||'—'}</td>
     <td>${r.fechaMin?`<span class="fecha-chip">${r.fechaMin}</span>`:'—'}</td>
     <td>${r.fechaMax?`<span class="fecha-chip">${r.fechaMax}</span>`:'—'}</td>
     <td style="text-align:right">${r.volumen>0?fmtNum(r.volumen,3):'—'}</td>
-    <td style="text-align:right">${r.peso>0?fmtNum(r.peso,1):'—'}</td></tr>`).join('');
+    <td style="text-align:right">${r.peso>0?fmtNum(r.peso,1):'—'}</td></tr>`).join('')
+    +(rows.length>ALL_CAP?`<tr><td colspan="8" style="text-align:center;padding:10px;color:#d97706;font-weight:600">Mostrando ${fmtNum(ALL_CAP)} de ${fmtNum(rows.length)} — afiná el filtro para ver el resto</td></tr>`:'');
 }
 
 function renderDesTable(){
@@ -1397,16 +1409,16 @@ function renderDesTable(){
   const fNodo=document.getElementById('fsel-des-nodo').value;
   const fEstado=document.getElementById('fsel-des-estado').value;
   const fFuente=document.getElementById('fsel-des-fuente').value;
-  if(!total){cnt.textContent='0 registros';tbody.innerHTML=`<tr class="empty-row-msg"><td colspan="10"><span>📂</span>Cargá los archivos de despacho</td></tr>`;return;}
+  if(!total){cnt.textContent='0 registros';tbody.innerHTML=`<tr class="empty-row-msg"><td colspan="11"><span>📂</span>Cargá los archivos de despacho</td></tr>`;return;}
   const hasFilter=!!(search||fNodo||fEstado||fFuente)||gfActive();
   // #9: el cuadro de detalle queda en blanco hasta aplicar un filtro/búsqueda.
   if(!hasFilter){
     cnt.textContent=fmtNum(total)+' en total';
-    tbody.innerHTML=`<tr class="empty-row-msg"><td colspan="10"><span>🔎</span>Aplicá un filtro o buscá arriba para ver las órdenes (${fmtNum(total)} en total)</td></tr>`;
+    tbody.innerHTML=`<tr class="empty-row-msg"><td colspan="11"><span>🔎</span>Aplicá un filtro o buscá arriba para ver las órdenes (${fmtNum(total)} en total)</td></tr>`;
     return;
   }
   const rows=doSort(filterRows(getDesRows(),search,fNodo,fEstado,fFuente),sortState.des.col,sortState.des.dir,desKeys);
-  if(!rows.length){cnt.textContent='0 registros';tbody.innerHTML=`<tr class="empty-row-msg"><td colspan="10"><span>🔍</span>Sin coincidencias</td></tr>`;return;}
+  if(!rows.length){cnt.textContent='0 registros';tbody.innerHTML=`<tr class="empty-row-msg"><td colspan="11"><span>🔍</span>Sin coincidencias</td></tr>`;return;}
   const shown=rows.slice(0,ALL_CAP);
   cnt.textContent=rows.length>ALL_CAP?`${fmtNum(ALL_CAP)} de ${fmtNum(rows.length)}`:fmtNum(rows.length)+' registros';
   tbody.innerHTML=shown.map(r=>`<tr>
@@ -1415,8 +1427,9 @@ function renderDesTable(){
     <td style="color:#6c757d">${r.subestado||'—'}</td><td>${r.region||'—'}</td>
     <td style="text-align:right">${r.items||1}</td>
     <td style="text-align:right">${r.volumen>0?fmtNum(r.volumen,3):'—'}</td>
-    <td style="text-align:right">${r.peso>0?fmtNum(r.peso,1):'—'}</td></tr>`).join('')
-    +(rows.length>ALL_CAP?`<tr><td colspan="10" style="text-align:center;padding:10px;color:#d97706;font-weight:600">Mostrando ${fmtNum(ALL_CAP)} de ${fmtNum(rows.length)} — afiná el filtro para ver el resto</td></tr>`:'');
+    <td style="text-align:right">${r.peso>0?fmtNum(r.peso,1):'—'}</td>
+    <td><span class="fecha-chip">${fmtD(r.dateStr)}</span></td></tr>`).join('')
+    +(rows.length>ALL_CAP?`<tr><td colspan="11" style="text-align:center;padding:10px;color:#d97706;font-weight:600">Mostrando ${fmtNum(ALL_CAP)} de ${fmtNum(rows.length)} — afiná el filtro para ver el resto</td></tr>`:'');
 }
 
 const ALL_CAP=1000; // tope de filas renderizadas para no trabar la pantalla
