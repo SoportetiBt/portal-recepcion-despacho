@@ -242,9 +242,15 @@ table.files-table tr:last-child td{border-bottom:none}
 <!-- ══════════ FILTER BAR ══════════ -->
 <div class="filter-bar" id="filter-bar">
   <div class="filter-group">
-    <label>Fecha</label>
-    <select id="fil-fecha" onchange="applyFilters()">
-      <option value="">Todas</option>
+    <label>Fecha desde</label>
+    <select id="fil-fecha-desde" onchange="applyFilters()">
+      <option value="">— Inicio —</option>
+    </select>
+  </div>
+  <div class="filter-group">
+    <label>Fecha hasta</label>
+    <select id="fil-fecha-hasta" onchange="applyFilters()">
+      <option value="">— Fin —</option>
     </select>
   </div>
   <div class="filter-group">
@@ -275,6 +281,15 @@ table.files-table tr:last-child td{border-bottom:none}
       <option value="Ingresado al sistema">Pendiente troncal</option>
     </select>
   </div>
+  <div class="filter-group">
+    <label>Stock</label>
+    <select id="fil-stock" onchange="applyFilters()">
+      <option value="">Todas</option>
+      <option value="stock">Solo en stock (no salió)</option>
+      <option value="despachado">Solo despachadas</option>
+    </select>
+  </div>
+  <button onclick="applyFilters()" style="background:#E8481A;color:#fff;border:none;border-radius:6px;padding:7px 16px;font-size:13px;font-weight:700;cursor:pointer;align-self:flex-end">🔍 Buscar</button>
   <button class="btn-clear" onclick="clearFilters()">Limpiar filtros</button>
 </div>
 
@@ -414,7 +429,7 @@ table.files-table tr:last-child td{border-bottom:none}
         <th style="text-align:right">Vol total m³</th>
       </tr></thead>
       <tbody id="tbody-des-nodes">
-        <tr><td colspan="9" style="text-align:center;padding:32px;color:#adb5bd">Sin datos — cargá UM Canon o Preliquidación Rosen</td></tr>
+        <tr><td colspan="7" style="text-align:center;padding:32px;color:#adb5bd">Sin datos — cargá UM Canon o Preliquidación Rosen</td></tr>
       </tbody>
     </table>
   </div>
@@ -513,9 +528,10 @@ table.files-table tr:last-child td{border-bottom:none}
           <th onclick="srt('all',7)" style="text-align:right">Ítems</th>
           <th onclick="srt('all',8)" style="text-align:right">Vol m³</th>
           <th onclick="srt('all',9)" style="text-align:right">Peso kg</th>
+          <th onclick="srt('all',10)">Fecha dato</th>
         </tr></thead>
         <tbody id="tbody-all-orders">
-          <tr class="empty-row-msg"><td colspan="10"><span>📂</span>Cargá archivos para ver el detalle de órdenes</td></tr>
+          <tr class="empty-row-msg"><td colspan="11"><span>📂</span>Cargá archivos para ver el detalle de órdenes</td></tr>
         </tbody>
       </table>
     </div>
@@ -739,7 +755,8 @@ const NODO_CSS={'C_RM':'b-crm','C_VIÑA':'b-cvina','R_VIÑA':'b-rvina','R_SERENA
 const CHART_ESTADOS=['Entregado','No entregado','Entrega parcial','Ingresado al sistema'];
 const CHART_COLORS=['#16a34a','#dc2626','#d97706','#9ca3af'];
 const sortState={rec:{col:-1,dir:1},des:{col:-1,dir:1},all:{col:-1,dir:1}};
-const gf={fecha:'',operacion:'',nodo:'',estado:''};
+const gf={fechaDesde:'',fechaHasta:'',operacion:'',nodo:'',estado:'',stock:''};
+let GF_STOCK_SET=null; // set de órdenes en stock (recibidas y no despachadas), recalculado en rebuildAll
 const charts={};
 
 // ════════════════════════════════════════════
@@ -975,12 +992,19 @@ function processFile(file,type,el){
       const entry={id:uid(),name:file.name,type,dateStr,loadedAt:Date.now(),
         totalRows:rawRows.length,uniqueOrders:dedupRows.length,rows:dedupRows};
       const s=load();
+      // #4: si ya existe un archivo con el mismo nombre, o del mismo tipo+fecha, lo REEMPLAZA
+      // (evita duplicar y que m³/peso se disparen al sumar las copias).
+      const before=s.files.length;
+      s.files=s.files.filter(f=>!(f.name===file.name||(f.type===type&&f.dateStr===dateStr)));
+      const replaced=before-s.files.length;
       s.files.push(entry);
       save(s);
       el.classList.add('loaded');
       document.getElementById('dst-'+type).textContent=
         `✓ ${fmtNum(dedupRows.length)} órdenes únicas / ${fmtNum(rawRows.length)} filas`;
-      toast(`✓ ${file.name} — ${fmtNum(dedupRows.length)} órdenes únicas`);
+      toast(replaced
+        ? `↻ ${file.name} — base actualizada (${fmtNum(dedupRows.length)} órdenes, reemplazó ${replaced} previo/s)`
+        : `✓ ${file.name} — ${fmtNum(dedupRows.length)} órdenes únicas`);
       rebuildAll();
     }catch(err){toast('⚠️ Error: '+err.message,'err');}
   };
@@ -1010,33 +1034,45 @@ function getStockSets(){
 // GLOBAL FILTERS
 // ════════════════════════════════════════════
 function applyFilters(){
-  gf.fecha=document.getElementById('fil-fecha').value;
+  gf.fechaDesde=document.getElementById('fil-fecha-desde').value;
+  gf.fechaHasta=document.getElementById('fil-fecha-hasta').value;
   gf.operacion=document.getElementById('fil-operacion').value;
   gf.nodo=document.getElementById('fil-nodo').value;
   gf.estado=document.getElementById('fil-estado').value;
+  gf.stock=document.getElementById('fil-stock').value;
   rebuildAll();
 }
 function clearFilters(){
-  ['fil-fecha','fil-operacion','fil-nodo','fil-estado'].forEach(id=>document.getElementById(id).value='');
+  ['fil-fecha-desde','fil-fecha-hasta','fil-operacion','fil-nodo','fil-estado','fil-stock']
+    .forEach(id=>{const e=document.getElementById(id);if(e)e.value='';});
   Object.keys(gf).forEach(k=>gf[k]='');
   rebuildAll();
 }
+function gfActive(){return!!(gf.fechaDesde||gf.fechaHasta||gf.operacion||gf.nodo||gf.estado||gf.stock);}
 function matchGF(r){
-  if(gf.fecha&&r.dateStr!==gf.fecha)return false;
+  if(gf.fechaDesde&&r.dateStr<gf.fechaDesde)return false;  // rango: dateStr es YYYY-MM-DD, comparación lexicográfica
+  if(gf.fechaHasta&&r.dateStr>gf.fechaHasta)return false;
   if(gf.nodo&&r.nodo!==gf.nodo)return false;
   if(gf.estado&&r.estado!==gf.estado)return false;
   if(gf.operacion){
     if(gf.operacion==='Canon'&&r.fuente==='rosen')return false;
     if(gf.operacion==='Rosen'&&r.fuente!=='rosen')return false;
   }
+  if(gf.stock&&GF_STOCK_SET){
+    const inStock=GF_STOCK_SET.has(r.orden);
+    if(gf.stock==='stock'&&!inStock)return false;       // solo recibidas que no salieron
+    if(gf.stock==='despachado'&&inStock)return false;    // solo las que ya salieron
+  }
   return true;
 }
 function updateFechaOptions(){
   const s=load();
   const dates=[...new Set(s.files.map(f=>f.dateStr))].sort().reverse();
-  const sel=document.getElementById('fil-fecha');
-  const cur=sel.value;
-  sel.innerHTML='<option value="">Todas</option>'+dates.map(d=>`<option value="${d}"${d===cur?' selected':''}>${fmtD(d)}</option>`).join('');
+  [['fil-fecha-desde','— Inicio —'],['fil-fecha-hasta','— Fin —']].forEach(([id,lbl])=>{
+    const sel=document.getElementById(id);if(!sel)return;
+    const cur=sel.value;
+    sel.innerHTML=`<option value="">${lbl}</option>`+dates.map(d=>`<option value="${d}"${d===cur?' selected':''}>${fmtD(d)}</option>`).join('');
+  });
 }
 
 // ════════════════════════════════════════════
@@ -1123,22 +1159,17 @@ function renderRecNodesTable(recRows){
       const toIso=f=>{const p=f.split('/');return p.length===3?`${p[2]}-${p[1]}-${p[0]}`:f;};
       return toIso(a).localeCompare(toIso(b));
     });
+    // #10: al desplegar se muestra SOLO el resumen por fecha de compromiso (fecha + cantidad),
+    // no el detalle fila a fila (ese ensancha la pantalla y vive en "Detalle de órdenes").
     const detailRows=fechasOrd.map(fecha=>{
       const ords=byFecha[fecha];
       const gVol=ords.reduce((s,r)=>s+r.volumen,0),gPeso=ords.reduce((s,r)=>s+r.peso,0);
-      return`<tr style="background:#eff6ff"><td colspan="7" style="padding:6px 10px;font-weight:700;font-size:11px;color:#1d4ed8;border-bottom:1px solid #dbeafe">
-        📅 Compromiso: <span class="fecha-chip">${fecha}</span> &nbsp;|&nbsp; ${ords.length} órdenes
-        ${gVol>0?`&nbsp;|&nbsp; ${fmtNum(gVol,2)} m³`:''}
-        ${gPeso>0?`&nbsp;|&nbsp; ${fmtNum(gPeso,1)} kg`:''}
-      </td></tr>
-      ${ords.map(r=>`<tr>
-        <td style="font-family:monospace;font-weight:700;color:#1e3a8a;padding-left:20px">${r.orden}</td>
-        <td>${r.cliente}</td><td>${r.region||'—'}</td>
-        <td><span class="fecha-chip">${r.fechaMin||'—'}</span></td>
-        <td><span class="fecha-chip">${r.fechaMax||r.fechaMin||'—'}</span></td>
-        <td style="text-align:right">${r.volumen>0?fmtNum(r.volumen,3):'—'}</td>
-        <td style="text-align:right">${r.peso>0?fmtNum(r.peso,1):'—'}</td>
-      </tr>`).join('')}`;
+      return`<tr>
+        <td style="padding:8px 12px;font-weight:700;color:#1d4ed8"><span class="fecha-chip">${fecha}</span></td>
+        <td style="text-align:right;font-weight:700">${fmtNum(ords.length)}</td>
+        <td style="text-align:right">${gVol>0?fmtNum(gVol,2):'—'}</td>
+        <td style="text-align:right">${gPeso>0?fmtNum(gPeso,1):'—'}</td>
+      </tr>`;
     }).join('');
     html+=`<tr>
       <td class="node-name-cell">${nodo}</td>
@@ -1148,12 +1179,12 @@ function renderRecNodesTable(recRows){
       <td class="num-cell">${vol>0?fmtNum(vol,2):'—'}</td>
       <td class="num-cell">${peso>0?fmtNum(peso,1):'—'}</td>
       <td style="padding:14px 16px">${fechaRange}</td>
-      <td style="padding:14px 16px"><button class="node-expand-btn" onclick="toggleDetail('${detId}',this)">Ver órdenes ▼</button></td>
+      <td style="padding:14px 16px"><button class="node-expand-btn" onclick="toggleDetail('${detId}',this)">Ver por fecha ▼</button></td>
     </tr>
     <tr id="${detId}" class="node-detail-row">
       <td colspan="8"><div class="node-detail-inner">
         <table>
-          <thead><tr><th>N° Orden</th><th>Cliente</th><th>Región</th><th>F. Comprm. Mín</th><th>F. Comprm. Máx</th><th style="text-align:right">Vol m³</th><th style="text-align:right">Peso kg</th></tr></thead>
+          <thead><tr><th>Fecha compromiso</th><th style="text-align:right">Órdenes</th><th style="text-align:right">Vol m³</th><th style="text-align:right">Peso kg</th></tr></thead>
           <tbody>${detailRows}</tbody>
         </table>
       </div></td>
@@ -1166,7 +1197,7 @@ function toggleDetail(id,btn){
   const row=document.getElementById(id);
   const isOpen=row.classList.toggle('open');
   btn.classList.toggle('open',isOpen);
-  btn.textContent=isOpen?'Cerrar ▲':'Ver órdenes ▼';
+  btn.textContent=isOpen?'Cerrar ▲':'Ver por fecha ▼';
 }
 
 function renderDesNodesTable(desRows){
@@ -1192,26 +1223,31 @@ function renderDesNodesTable(desRows){
   const dBody=document.getElementById('nt-des-body');
   if(!rows.length){dBody.innerHTML='<tr><td colspan="6" style="text-align:center;padding:24px;color:#adb5bd">Sin datos de despacho</td></tr>';return;}
   const desBody=document.getElementById('tbody-des-nodes');
-  const nodeHtml=NODES.map(nodo=>{
+  // #11: dos tablas con DISTINTO número de columnas comparten estos datos:
+  //  - Resumen (nt-des-body): 6 col, SIN "Parciales".
+  //  - Despacho (tbody-des-nodes): 7 col, CON "Parciales".
+  // Antes ambas recibían 7 celdas → la del Resumen quedaba descuadrada. Ahora cada una recibe lo suyo.
+  const buildRows=(withPar)=>NODES.map(nodo=>{
     const nr=rows.filter(r=>r.nodo===nodo);
-    if(!nr.length)return`<tr><td class="node-name-cell">${nodo}</td><td colspan="5" style="color:#adb5bd;padding:14px 16px">Sin datos</td></tr>`;
+    if(!nr.length)return`<tr><td class="node-name-cell">${nodo}</td><td colspan="${withPar?6:5}" style="color:#adb5bd;padding:14px 16px">Sin datos</td></tr>`;
     const total=nr.length;
     const ent=nr.filter(r=>r.estado==='Entregado').length;
     const noE=nr.filter(r=>r.estado==='No entregado').length;
     const par=nr.filter(r=>r.estado==='Entrega parcial').length;
     const efect=Math.round(ent/total*100);
     const vol=nr.reduce((s,r)=>s+r.volumen,0);
+    const color=efect>=90?'#16a34a':efect>=70?'#d97706':'#f97316';
     return`<tr>
       <td class="node-name-cell">${nodo}</td>
       <td class="num-cell">${fmtNum(total)}</td>
       <td class="num-cell" style="color:#16a34a;font-weight:700">${fmtNum(ent)}</td>
       <td class="num-cell" style="color:#dc2626;font-weight:700">${fmtNum(noE)}</td>
-      <td class="num-cell" style="color:#d97706">${par}</td>
-      <td class="pct-cell">${pctBar(efect,efect>=90?'#16a34a':efect>=70?'#d97706':'#f97316')}</td>
+      ${withPar?`<td class="num-cell" style="color:#d97706">${par}</td>`:''}
+      <td class="pct-cell">${pctBar(efect,color)}</td>
       <td class="num-cell">${fmtNum(vol,2)}</td></tr>`;
   }).join('');
-  if(desBody)desBody.innerHTML=nodeHtml;
-  dBody.innerHTML=nodeHtml;
+  if(desBody)desBody.innerHTML=buildRows(true);   // Despacho: con Parciales (7 col)
+  dBody.innerHTML=buildRows(false);                // Resumen: sin Parciales (6 col)
 }
 
 // ════════════════════════════════════════════
@@ -1309,7 +1345,7 @@ function renderRecTotalizado(){
   }).join('');
 }
 const desKeys=['orden','cliente','nodo','fuente','estado','subestado','region','items','volumen','peso'];
-const allKeys=['orden','cliente','nodo','fuente','estado','subestado','region','items','volumen','peso'];
+const allKeys=['orden','cliente','nodo','fuente','estado','subestado','region','items','volumen','peso','dateStr'];
 
 function badge(text,cls){return`<span class="badge ${cls||''}">${text||'—'}</span>`}
 function estBadge(e){return badge(e,ESTADO_CSS[e]||'b-pen')}
@@ -1350,41 +1386,65 @@ function renderRecTable(){
 }
 
 function renderDesTable(){
-  const rows=doSort(filterRows(getDesRows(),
-    document.getElementById('src-des').value,
-    document.getElementById('fsel-des-nodo').value,
-    document.getElementById('fsel-des-estado').value,
-    document.getElementById('fsel-des-fuente').value),
-    sortState.des.col,sortState.des.dir,desKeys);
-  document.getElementById('count-des').textContent=fmtNum(rows.length)+' registros';
   const tbody=document.getElementById('tbody-des-orders');
-  if(!rows.length){tbody.innerHTML=`<tr class="empty-row-msg"><td colspan="10"><span>${getDesRows().length?'🔍':'📂'}</span>${getDesRows().length?'Sin coincidencias':'Cargá los archivos de despacho'}</td></tr>`;return;}
-  tbody.innerHTML=rows.map(r=>`<tr>
+  const cnt=document.getElementById('count-des');
+  const total=getDesRows().length;
+  const search=document.getElementById('src-des').value;
+  const fNodo=document.getElementById('fsel-des-nodo').value;
+  const fEstado=document.getElementById('fsel-des-estado').value;
+  const fFuente=document.getElementById('fsel-des-fuente').value;
+  if(!total){cnt.textContent='0 registros';tbody.innerHTML=`<tr class="empty-row-msg"><td colspan="10"><span>📂</span>Cargá los archivos de despacho</td></tr>`;return;}
+  const hasFilter=!!(search||fNodo||fEstado||fFuente)||gfActive();
+  // #9: el cuadro de detalle queda en blanco hasta aplicar un filtro/búsqueda.
+  if(!hasFilter){
+    cnt.textContent=fmtNum(total)+' en total';
+    tbody.innerHTML=`<tr class="empty-row-msg"><td colspan="10"><span>🔎</span>Aplicá un filtro o buscá arriba para ver las órdenes (${fmtNum(total)} en total)</td></tr>`;
+    return;
+  }
+  const rows=doSort(filterRows(getDesRows(),search,fNodo,fEstado,fFuente),sortState.des.col,sortState.des.dir,desKeys);
+  if(!rows.length){cnt.textContent='0 registros';tbody.innerHTML=`<tr class="empty-row-msg"><td colspan="10"><span>🔍</span>Sin coincidencias</td></tr>`;return;}
+  const shown=rows.slice(0,ALL_CAP);
+  cnt.textContent=rows.length>ALL_CAP?`${fmtNum(ALL_CAP)} de ${fmtNum(rows.length)}`:fmtNum(rows.length)+' registros';
+  tbody.innerHTML=shown.map(r=>`<tr>
     <td class="order-id">${r.orden}</td><td>${r.cliente}</td><td>${nodoBadge(r.nodo)}</td>
     <td style="color:#6c757d">${fuente(r.fuente)}</td><td>${estBadge(r.estado)}</td>
     <td style="color:#6c757d">${r.subestado||'—'}</td><td>${r.region||'—'}</td>
     <td style="text-align:right">${r.items||1}</td>
     <td style="text-align:right">${r.volumen>0?fmtNum(r.volumen,3):'—'}</td>
-    <td style="text-align:right">${r.peso>0?fmtNum(r.peso,1):'—'}</td></tr>`).join('');
+    <td style="text-align:right">${r.peso>0?fmtNum(r.peso,1):'—'}</td></tr>`).join('')
+    +(rows.length>ALL_CAP?`<tr><td colspan="10" style="text-align:center;padding:10px;color:#d97706;font-weight:600">Mostrando ${fmtNum(ALL_CAP)} de ${fmtNum(rows.length)} — afiná el filtro para ver el resto</td></tr>`:'');
 }
 
+const ALL_CAP=1000; // tope de filas renderizadas para no trabar la pantalla
 function renderAllTable(){
-  const rows=doSort(filterRows(getAllRows(),
-    document.getElementById('src-all').value,
-    document.getElementById('fsel-all-nodo').value,
-    document.getElementById('fsel-all-estado').value,
-    document.getElementById('fsel-all-modulo').value),
-    sortState.all.col,sortState.all.dir,allKeys);
-  document.getElementById('count-all').textContent=fmtNum(rows.length)+' registros';
   const tbody=document.getElementById('tbody-all-orders');
-  if(!rows.length){tbody.innerHTML=`<tr class="empty-row-msg"><td colspan="10"><span>${getAllRows().length?'🔍':'📂'}</span>${getAllRows().length?'Sin coincidencias':'Cargá archivos para ver datos'}</td></tr>`;return;}
-  tbody.innerHTML=rows.map(r=>`<tr>
+  const cnt=document.getElementById('count-all');
+  const total=getAllRows().length;
+  const search=document.getElementById('src-all').value;
+  const fNodo=document.getElementById('fsel-all-nodo').value;
+  const fEstado=document.getElementById('fsel-all-estado').value;
+  const fMod=document.getElementById('fsel-all-modulo').value;
+  if(!total){cnt.textContent='0 registros';tbody.innerHTML=`<tr class="empty-row-msg"><td colspan="11"><span>📂</span>Cargá archivos para ver el detalle de órdenes</td></tr>`;return;}
+  const hasFilter=!!(search||fNodo||fEstado||fMod)||gfActive();
+  // #7: no renderizar las miles de órdenes por defecto; recién al filtrar/buscar.
+  if(!hasFilter){
+    cnt.textContent=fmtNum(total)+' en total';
+    tbody.innerHTML=`<tr class="empty-row-msg"><td colspan="11"><span>🔎</span>Aplicá un filtro o buscá arriba para ver las órdenes (${fmtNum(total)} en total)</td></tr>`;
+    return;
+  }
+  const rows=doSort(filterRows(getAllRows(),search,fNodo,fEstado,fMod),sortState.all.col,sortState.all.dir,allKeys);
+  if(!rows.length){cnt.textContent='0 registros';tbody.innerHTML=`<tr class="empty-row-msg"><td colspan="11"><span>🔍</span>Sin coincidencias</td></tr>`;return;}
+  const shown=rows.slice(0,ALL_CAP);
+  cnt.textContent=rows.length>ALL_CAP?`${fmtNum(ALL_CAP)} de ${fmtNum(rows.length)}`:fmtNum(rows.length)+' registros';
+  tbody.innerHTML=shown.map(r=>`<tr>
     <td class="order-id">${r.orden}</td><td>${r.cliente}</td><td>${nodoBadge(r.nodo)}</td>
     <td>${badge(TIPO_LBL[r.fuente],TIPO_CSS[r.fuente])}</td><td>${estBadge(r.estado)}</td>
     <td style="color:#6c757d">${r.subestado||'—'}</td><td>${r.region||'—'}</td>
     <td style="text-align:right">${r.items||1}</td>
     <td style="text-align:right">${r.volumen>0?fmtNum(r.volumen,3):'—'}</td>
-    <td style="text-align:right">${r.peso>0?fmtNum(r.peso,1):'—'}</td></tr>`).join('');
+    <td style="text-align:right">${r.peso>0?fmtNum(r.peso,1):'—'}</td>
+    <td><span class="fecha-chip">${fmtD(r.dateStr)}</span></td></tr>`).join('')
+    +(rows.length>ALL_CAP?`<tr><td colspan="11" style="text-align:center;padding:10px;color:#d97706;font-weight:600">Mostrando ${fmtNum(ALL_CAP)} de ${fmtNum(rows.length)} — afiná el filtro para ver el resto</td></tr>`:'');
 }
 
 function srt(tbl,col){
@@ -1460,6 +1520,7 @@ function exportJSON(){
 }
 
 function rebuildAll(){
+  GF_STOCK_SET=getStockSets().enStock;   // refresca el set de stock para el filtro global
   const recRows=getRecRows(),desRows=getDesRows();
   renderSummaryCards();
   renderRecNodesTable(recRows);
