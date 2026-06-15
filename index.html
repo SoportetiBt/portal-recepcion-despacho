@@ -288,6 +288,13 @@ table.files-table tr:last-child td{border-bottom:none}
       <option value="despachado">Solo despachadas</option>
     </select>
   </div>
+  <div class="filter-group">
+    <label>Conteo despacho</label>
+    <select id="fil-desmode" onchange="applyFilters()" title="Único: cada orden cuenta una vez (global). Salidas a ruta: cuenta cada vez que la orden salió a ruta (por día), para ver reintentos/rechazos.">
+      <option value="unico">Órdenes únicas</option>
+      <option value="ruta">Salidas a ruta (beta)</option>
+    </select>
+  </div>
   <button onclick="applyFilters()" style="background:#E8481A;color:#fff;border:none;border-radius:6px;padding:7px 16px;font-size:13px;font-weight:700;cursor:pointer;align-self:flex-end">🔍 Buscar</button>
   <button class="btn-clear" onclick="clearFilters()">Limpiar filtros</button>
 </div>
@@ -907,6 +914,20 @@ function dedup(rows){
   });
   return[...m.values()];
 }
+// BETA: una salida a ruta = una orden por DÍA. No colapsa la misma orden entre días,
+// así se ven los reintentos (rechazo el 5, reintento/entrega el 6, etc.).
+function dedupByDay(rows){
+  const m=new Map();
+  rows.forEach(r=>{
+    const k=r.orden+'||'+r.dateStr;
+    if(m.has(k)){const x=m.get(k);x.volumen+=r.volumen;x.peso+=r.peso;x.items+=(r.items||1);}
+    else{m.set(k,{...r,items:(r.items||1)});}
+  });
+  return[...m.values()];
+}
+// Modo de conteo de despacho (lee el switch de la barra): 'unico' (default) | 'ruta' (beta)
+function desMode(){const e=document.getElementById('fil-desmode');return(e&&e.value==='ruta')?'ruta':'unico';}
+function dedupDes(rows){return desMode()==='ruta'?dedupByDay(rows):dedup(rows);}
 function colIdx(headers,name){const i=headers.findIndex(h=>cs(h).toLowerCase()===name.toLowerCase());return i>=0?i:null;}
 
 // ════════════════════════════════════════════
@@ -1019,10 +1040,10 @@ function processFile(file,type,el){
 // ════════════════════════════════════════════
 function getRows(type){return load().files.filter(f=>f.type===type).flatMap(f=>f.rows);}
 function getRecRows(){return dedup(getRows('troncal')).filter(r=>r.estado==='Ingresado al sistema');}
-function getDesRows(){return dedup([...getRows('um'),...getRows('rosen')]);}
+function getDesRows(){return dedupDes([...getRows('um'),...getRows('rosen')]);}
 function getAllRows(){
   const rec=dedup(getRows('troncal'));
-  const des=dedup([...getRows('um'),...getRows('rosen')]);
+  const des=dedupDes([...getRows('um'),...getRows('rosen')]);
   return[...rec,...des];
 }
 function getStockSets(){
@@ -1090,7 +1111,7 @@ const SC_CARDS={'C_RM':'sc-crm','C_VIÑA':'sc-cvina','R_VIÑA':'sc-rvina','R_SER
 
 function renderSummaryCards(){
   const recAll=dedup(getRows('troncal')).filter(r=>matchGF(r));
-  const desAll=dedup([...getRows('um'),...getRows('rosen')]).filter(r=>matchGF(r));
+  const desAll=dedupDes([...getRows('um'),...getRows('rosen')]).filter(r=>matchGF(r));
   NODES.forEach(nodo=>{
     const el=document.getElementById(SC_CARDS[nodo]);
     const hdr=el.querySelector('.sc-header').outerHTML;
