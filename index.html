@@ -413,10 +413,11 @@ table.files-table tr:last-child td{border-bottom:none}
           <th onclick="srt('rec',1)">Cliente</th>
           <th onclick="srt('rec',2)">Nodo</th>
           <th onclick="srt('rec',3)">Región</th>
-          <th onclick="srt('rec',4)">F. Comprm. Mín</th>
-          <th onclick="srt('rec',5)">F. Comprm. Máx</th>
-          <th onclick="srt('rec',6)" style="text-align:right">Volumen m³</th>
-          <th onclick="srt('rec',7)" style="text-align:right">Peso kg</th>
+          <th onclick="srt('rec',4)">F. Recepción</th>
+          <th onclick="srt('rec',5)">F. Comprm. Mín</th>
+          <th onclick="srt('rec',6)">F. Comprm. Máx</th>
+          <th onclick="srt('rec',7)" style="text-align:right">Volumen m³</th>
+          <th onclick="srt('rec',8)" style="text-align:right">Peso kg</th>
         </tr></thead>
         <tbody id="tbody-rec-orders">
           <tr class="empty-row-msg"><td colspan="9"><span>📂</span>Cargá el Troncal Canon en la pestaña "Cargar Archivos"</td></tr>
@@ -1357,7 +1358,7 @@ function renderCharts(desRows){
 // ════════════════════════════════════════════
 // ORDER TABLES
 // ════════════════════════════════════════════
-const recKeys=['orden','cliente','nodo','region','fechaMin','fechaMax','volumen','peso'];
+const recKeys=['orden','cliente','nodo','region','dateStr','fechaMin','fechaMax','volumen','peso'];
 let recViewMode='detalle';
 
 function setRecView(mode){
@@ -1454,26 +1455,27 @@ function renderRecTable(){
   const total=getRecRows().length;
   const search=document.getElementById('src-rec').value;
   const fNodo=document.getElementById('fsel-rec-nodo').value;
-  if(!total){cnt.textContent='0 registros';tbody.innerHTML=`<tr class="empty-row-msg"><td colspan="8"><span>📂</span>Cargá el Troncal Canon</td></tr>`;return;}
+  if(!total){cnt.textContent='0 registros';tbody.innerHTML=`<tr class="empty-row-msg"><td colspan="9"><span>📂</span>Cargá el Troncal Canon</td></tr>`;return;}
   const hasFilter=!!(search||fNodo)||gfActive();
   // Igual que Detalle Órdenes / Despacho: el detalle queda vacío hasta filtrar/buscar.
   if(!hasFilter){
     cnt.textContent=fmtNum(total)+' en total';
-    tbody.innerHTML=`<tr class="empty-row-msg"><td colspan="8"><span>🔎</span>Aplicá un filtro o buscá arriba para ver las órdenes (${fmtNum(total)} en total)</td></tr>`;
+    tbody.innerHTML=`<tr class="empty-row-msg"><td colspan="9"><span>🔎</span>Aplicá un filtro o buscá arriba para ver las órdenes (${fmtNum(total)} en total)</td></tr>`;
     return;
   }
   const rows=doSort(filterRows(getRecRows(),search,fNodo,'',null),sortState.rec.col,sortState.rec.dir,recKeys);
-  if(!rows.length){cnt.textContent='0 registros';tbody.innerHTML=`<tr class="empty-row-msg"><td colspan="8"><span>🔍</span>Sin coincidencias</td></tr>`;return;}
+  if(!rows.length){cnt.textContent='0 registros';tbody.innerHTML=`<tr class="empty-row-msg"><td colspan="9"><span>🔍</span>Sin coincidencias</td></tr>`;return;}
   const shown=rows.slice(0,ALL_CAP);
   cnt.textContent=rows.length>ALL_CAP?`${fmtNum(ALL_CAP)} de ${fmtNum(rows.length)}`:fmtNum(rows.length)+' registros';
   tbody.innerHTML=shown.map(r=>`<tr>
     <td class="order-id">${r.orden}</td><td>${r.cliente}</td><td>${nodoBadge(r.nodo)}</td>
     <td>${r.region||'—'}</td>
+    <td>${r.dateStr?`<span class="fecha-chip">${fmtD(r.dateStr)}</span>`:'—'}</td>
     <td>${r.fechaMin?`<span class="fecha-chip">${r.fechaMin}</span>`:'—'}</td>
     <td>${r.fechaMax?`<span class="fecha-chip">${r.fechaMax}</span>`:'—'}</td>
     <td style="text-align:right">${r.volumen>0?fmtNum(r.volumen,3):'—'}</td>
     <td style="text-align:right">${r.peso>0?fmtNum(r.peso,1):'—'}</td></tr>`).join('')
-    +(rows.length>ALL_CAP?`<tr><td colspan="8" style="text-align:center;padding:10px;color:#d97706;font-weight:600">Mostrando ${fmtNum(ALL_CAP)} de ${fmtNum(rows.length)} — afiná el filtro para ver el resto</td></tr>`:'');
+    +(rows.length>ALL_CAP?`<tr><td colspan="9" style="text-align:center;padding:10px;color:#d97706;font-weight:600">Mostrando ${fmtNum(ALL_CAP)} de ${fmtNum(rows.length)} — afiná el filtro para ver el resto</td></tr>`:'');
 }
 
 function renderDesTable(){
@@ -1625,7 +1627,8 @@ function exportExcel(which){
     const search=document.getElementById('src-rec').value,fNodo=document.getElementById('fsel-rec-nodo').value;
     rows=doSort(filterRows(getRecRows(),search,fNodo,'',null),sortState.rec.col,sortState.rec.dir,recKeys);
     cols=[['N° Orden','orden'],['Cliente','cliente'],['Nodo','nodo'],['Región','region'],
-      ['F. Comprm. Mín','fechaMin'],['F. Comprm. Máx','fechaMax'],['Volumen m³',r=>num(r.volumen)],['Peso kg',r=>num(r.peso)]];
+      ['F. Recepción',r=>fmtD(r.dateStr)],['F. Comprm. Mín','fechaMin'],['F. Comprm. Máx','fechaMax'],
+      ['Volumen m³',r=>num(r.volumen)],['Peso kg',r=>num(r.peso)]];
     name='recepcion';
   }else if(which==='des'){
     const search=document.getElementById('src-des').value,fNodo=document.getElementById('fsel-des-nodo').value,
