@@ -145,6 +145,11 @@ table.orders-table tr:last-child td{border-bottom:none}
 .b-par{background:#fef9c3;color:#854d0e}
 .b-bod{background:#dbeafe;color:#1d4ed8}
 .b-pen{background:#f3f4f6;color:#6b7280}
+.b-dev{background:#ede9fe;color:#6d28d9}
+.b-ext{background:#1f2937;color:#fff}
+.edited-mark{display:inline-block;margin-left:5px;color:#E8481A;font-weight:700;cursor:help}
+.btn-edit{background:none;border:1px solid #dee2e6;border-radius:5px;padding:3px 9px;font-size:12px;cursor:pointer;color:#6c757d;transition:all .15s}
+.btn-edit:hover{border-color:#E8481A;color:#E8481A}
 .b-crm{background:#dbeafe;color:#1d4ed8}
 .b-cvina{background:#cffafe;color:#0e7490}
 .b-rvina{background:#fff7ed;color:#c2410c}
@@ -278,6 +283,8 @@ table.files-table tr:last-child td{border-bottom:none}
       <option value="Entregado">Entregado</option>
       <option value="No entregado">No entregado</option>
       <option value="Entrega parcial">Entrega parcial</option>
+      <option value="Devuelto al mandante">Devuelto al mandante</option>
+      <option value="Extraviado">Extraviado</option>
     </select>
   </div>
   <div class="filter-group">
@@ -383,6 +390,7 @@ table.files-table tr:last-child td{border-bottom:none}
           <option value="">Todos los nodos</option>
           <option value="C_RM">C_RM</option><option value="C_VIÑA">C_VIÑA</option>
         </select>
+        <button class="btn btn-outline btn-sm" onclick="exportExcel('rec')" title="Baja a Excel exactamente lo que está filtrado">⬇ Excel</button>
       </div>
     </div>
     <!-- Vista Totalizado por fecha de compromiso -->
@@ -469,6 +477,7 @@ table.files-table tr:last-child td{border-bottom:none}
           <option value="um">Último Metro</option>
           <option value="rosen">Rosen</option>
         </select>
+        <button class="btn btn-outline btn-sm" onclick="exportExcel('des')" title="Baja a Excel exactamente lo que está filtrado">⬇ Excel</button>
       </div>
     </div>
     <div class="table-scroll">
@@ -518,8 +527,10 @@ table.files-table tr:last-child td{border-bottom:none}
           <option value="Entregado">Entregado</option>
           <option value="No entregado">No entregado</option>
           <option value="Entrega parcial">Entrega parcial</option>
-          <option value="Ingresado al sistema">Pendiente troncal</option>
+          <option value="Devuelto al mandante">Devuelto al mandante</option>
+          <option value="Extraviado">Extraviado</option>
         </select>
+        <button class="btn btn-outline btn-sm" onclick="exportExcel('all')" title="Baja a Excel exactamente lo que está filtrado">⬇ Excel</button>
       </div>
     </div>
     <div class="table-scroll">
@@ -536,9 +547,10 @@ table.files-table tr:last-child td{border-bottom:none}
           <th onclick="srt('all',8)" style="text-align:right">Vol m³</th>
           <th onclick="srt('all',9)" style="text-align:right">Peso kg</th>
           <th onclick="srt('all',10)">Fecha dato</th>
+          <th>Acción</th>
         </tr></thead>
         <tbody id="tbody-all-orders">
-          <tr class="empty-row-msg"><td colspan="11"><span>📂</span>Cargá archivos para ver el detalle de órdenes</td></tr>
+          <tr class="empty-row-msg"><td colspan="12"><span>📂</span>Cargá archivos para ver el detalle de órdenes</td></tr>
         </tbody>
       </table>
     </div>
@@ -639,6 +651,21 @@ table.files-table tr:last-child td{border-bottom:none}
       <button class="btn btn-outline" onclick="closeDlg('dlg-confirm')">Cancelar</button>
       <button class="btn btn-danger" id="dlg-ok">Confirmar</button>
     </div>
+  </div>
+</div>
+
+<!-- ESTADO EDIT DIALOG (#15/#17) -->
+<div class="overlay" id="dlg-estado">
+  <div class="dialog">
+    <h3>Cambiar estado de la orden</h3>
+    <p id="dlg-estado-msg"></p>
+    <select id="estado-sel"></select>
+    <div class="dialog-btns">
+      <button class="btn btn-danger" id="estado-clear" onclick="clearEstadoOverride()" style="margin-right:auto">Quitar corrección</button>
+      <button class="btn btn-outline" onclick="closeDlg('dlg-estado')">Cancelar</button>
+      <button class="btn btn-primary" onclick="saveEstadoOverride()">Guardar</button>
+    </div>
+    <div style="font-size:11px;color:#6c757d;margin-top:12px">La corrección se guarda en la nube y se mantiene aunque vuelvas a subir el archivo.</div>
   </div>
 </div>
 
@@ -757,7 +784,10 @@ async function saveSnapshot(data,updatedAt){
 const NODES=['C_RM','C_VIÑA','R_VIÑA','R_SERENA'];
 const TIPO_LBL={troncal:'Troncal Canon',um:'Último Metro Canon',rosen:'Rosen Preliq.'};
 const TIPO_CSS={troncal:'b-tipo-troncal',um:'b-tipo-um',rosen:'b-tipo-rosen'};
-const ESTADO_CSS={'Entregado':'b-ent','No entregado':'b-no','Entrega parcial':'b-par','Bodega RM':'b-bod','Ingresado al sistema':'b-pen'};
+const ESTADO_CSS={'Entregado':'b-ent','No entregado':'b-no','Entrega parcial':'b-par','Bodega RM':'b-bod','Ingresado al sistema':'b-pen','Devuelto al mandante':'b-dev','Extraviado':'b-ext'};
+// Estados "terminales" que un admin puede fijar a mano (#15/#17). Sacan la orden de "en stock".
+const ESTADOS_EDITABLES=['Entregado','No entregado','Entrega parcial','Devuelto al mandante','Extraviado'];
+const ESTADOS_CIERRE=['Entregado','Entrega parcial','Devuelto al mandante','Extraviado']; // ya resueltas → no son stock pendiente
 const NODO_CSS={'C_RM':'b-crm','C_VIÑA':'b-cvina','R_VIÑA':'b-rvina','R_SERENA':'b-rser'};
 const CHART_ESTADOS=['Entregado','No entregado','Entrega parcial','Ingresado al sistema'];
 const CHART_COLORS=['#16a34a','#dc2626','#d97706','#9ca3af'];
@@ -1039,18 +1069,30 @@ function processFile(file,type,el){
 // GET DATA
 // ════════════════════════════════════════════
 function getRows(type){return load().files.filter(f=>f.type===type).flatMap(f=>f.rows);}
+// #15: correcciones manuales de estado por orden. Viven en MEM_STORE.overrides, separadas de los
+// archivos, así SOBREVIVEN a re-subir el archivo (regla confirmada). Se aplican al leer.
+function getOverrides(){const s=load();return s.overrides||{};}
+function applyOv(rows){
+  const ov=getOverrides();
+  return rows.map(r=>{
+    const o=ov[r.orden];
+    return(o&&o.estado)?{...r,estado:o.estado,_edited:true,_editBy:o.by,_editAt:o.at}:r;
+  });
+}
 function getRecRows(){return dedup(getRows('troncal')).filter(r=>r.estado==='Ingresado al sistema');}
-function getDesRows(){return dedupDes([...getRows('um'),...getRows('rosen')]);}
+function getDesRows(){return applyOv(dedupDes([...getRows('um'),...getRows('rosen')]));}
 function getAllRows(){
   const rec=dedup(getRows('troncal'));
   const des=dedupDes([...getRows('um'),...getRows('rosen')]);
-  return[...rec,...des];
+  return applyOv([...rec,...des]);
 }
 function getStockSets(){
+  const ov=getOverrides();
+  const cerrada=o=>ov[o]&&ESTADOS_CIERRE.includes(ov[o].estado); // resuelta a mano → ya no es stock pendiente
   const recOrders=new Set(getRecRows().map(r=>r.orden));
-  const desOrders=new Set(getDesRows().map(r=>r.orden));
+  const desOrders=new Set([...getRows('um'),...getRows('rosen')].map(r=>r.orden));
   const enDespacho=new Set([...recOrders].filter(o=>desOrders.has(o)));
-  const enStock=new Set([...recOrders].filter(o=>!desOrders.has(o)));
+  const enStock=new Set([...recOrders].filter(o=>!desOrders.has(o)&&!cerrada(o)));
   return{recOrders,desOrders,enDespacho,enStock};
 }
 
@@ -1456,7 +1498,7 @@ function renderDesTable(){
   cnt.textContent=rows.length>ALL_CAP?`${fmtNum(ALL_CAP)} de ${fmtNum(rows.length)}`:fmtNum(rows.length)+' registros';
   tbody.innerHTML=shown.map(r=>`<tr>
     <td class="order-id">${r.orden}</td><td>${r.cliente}</td><td>${nodoBadge(r.nodo)}</td>
-    <td style="color:#6c757d">${fuente(r.fuente)}</td><td>${estBadge(r.estado)}</td>
+    <td style="color:#6c757d">${fuente(r.fuente)}</td><td>${estBadge(r.estado)}${editedMark(r)}</td>
     <td style="color:#6c757d">${r.subestado||'—'}</td><td>${r.region||'—'}</td>
     <td style="text-align:right">${r.items||1}</td>
     <td style="text-align:right">${r.volumen>0?fmtNum(r.volumen,3):'—'}</td>
@@ -1464,6 +1506,9 @@ function renderDesTable(){
     <td><span class="fecha-chip">${fmtD(r.dateStr)}</span></td></tr>`).join('')
     +(rows.length>ALL_CAP?`<tr><td colspan="11" style="text-align:center;padding:10px;color:#d97706;font-weight:600">Mostrando ${fmtNum(ALL_CAP)} de ${fmtNum(rows.length)} — afiná el filtro para ver el resto</td></tr>`:'');
 }
+
+// Marca ✎ para órdenes con corrección manual de estado (#15).
+function editedMark(r){return r._edited?`<span class="edited-mark" title="Editado a mano${r._editBy?(' por '+r._editBy):''}">✎</span>`:'';}
 
 const ALL_CAP=1000; // tope de filas renderizadas para no trabar la pantalla
 function renderAllTable(){
@@ -1474,27 +1519,29 @@ function renderAllTable(){
   const fNodo=document.getElementById('fsel-all-nodo').value;
   const fEstado=document.getElementById('fsel-all-estado').value;
   const fMod=document.getElementById('fsel-all-modulo').value;
-  if(!total){cnt.textContent='0 registros';tbody.innerHTML=`<tr class="empty-row-msg"><td colspan="11"><span>📂</span>Cargá archivos para ver el detalle de órdenes</td></tr>`;return;}
+  if(!total){cnt.textContent='0 registros';tbody.innerHTML=`<tr class="empty-row-msg"><td colspan="12"><span>📂</span>Cargá archivos para ver el detalle de órdenes</td></tr>`;return;}
   const hasFilter=!!(search||fNodo||fEstado||fMod)||gfActive();
   // #7: no renderizar las miles de órdenes por defecto; recién al filtrar/buscar.
   if(!hasFilter){
     cnt.textContent=fmtNum(total)+' en total';
-    tbody.innerHTML=`<tr class="empty-row-msg"><td colspan="11"><span>🔎</span>Aplicá un filtro o buscá arriba para ver las órdenes (${fmtNum(total)} en total)</td></tr>`;
+    tbody.innerHTML=`<tr class="empty-row-msg"><td colspan="12"><span>🔎</span>Aplicá un filtro o buscá arriba para ver las órdenes (${fmtNum(total)} en total)</td></tr>`;
     return;
   }
   const rows=doSort(filterRows(getAllRows(),search,fNodo,fEstado,fMod),sortState.all.col,sortState.all.dir,allKeys);
-  if(!rows.length){cnt.textContent='0 registros';tbody.innerHTML=`<tr class="empty-row-msg"><td colspan="11"><span>🔍</span>Sin coincidencias</td></tr>`;return;}
+  if(!rows.length){cnt.textContent='0 registros';tbody.innerHTML=`<tr class="empty-row-msg"><td colspan="12"><span>🔍</span>Sin coincidencias</td></tr>`;return;}
   const shown=rows.slice(0,ALL_CAP);
   cnt.textContent=rows.length>ALL_CAP?`${fmtNum(ALL_CAP)} de ${fmtNum(rows.length)}`:fmtNum(rows.length)+' registros';
+  const puedeEditar=isAuthValid();
   tbody.innerHTML=shown.map(r=>`<tr>
     <td class="order-id">${r.orden}</td><td>${r.cliente}</td><td>${nodoBadge(r.nodo)}</td>
-    <td>${badge(TIPO_LBL[r.fuente],TIPO_CSS[r.fuente])}</td><td>${estBadge(r.estado)}</td>
+    <td>${badge(TIPO_LBL[r.fuente],TIPO_CSS[r.fuente])}</td><td>${estBadge(r.estado)}${editedMark(r)}</td>
     <td style="color:#6c757d">${r.subestado||'—'}</td><td>${r.region||'—'}</td>
     <td style="text-align:right">${r.items||1}</td>
     <td style="text-align:right">${r.volumen>0?fmtNum(r.volumen,3):'—'}</td>
     <td style="text-align:right">${r.peso>0?fmtNum(r.peso,1):'—'}</td>
-    <td><span class="fecha-chip">${fmtD(r.dateStr)}</span></td></tr>`).join('')
-    +(rows.length>ALL_CAP?`<tr><td colspan="11" style="text-align:center;padding:10px;color:#d97706;font-weight:600">Mostrando ${fmtNum(ALL_CAP)} de ${fmtNum(rows.length)} — afiná el filtro para ver el resto</td></tr>`:'');
+    <td><span class="fecha-chip">${fmtD(r.dateStr)}</span></td>
+    <td>${puedeEditar?`<button class="btn-edit" onclick="openEstadoEditor('${r.orden}','${r.estado}')">✎ Estado</button>`:'<span style="color:#cbd5e1">—</span>'}</td></tr>`).join('')
+    +(rows.length>ALL_CAP?`<tr><td colspan="12" style="text-align:center;padding:10px;color:#d97706;font-weight:600">Mostrando ${fmtNum(ALL_CAP)} de ${fmtNum(rows.length)} — afiná el filtro para ver el resto</td></tr>`:'');
 }
 
 function srt(tbl,col){
@@ -1567,6 +1614,71 @@ function exportJSON(){
   a.download='recepcion_despacho_'+new Date().toISOString().slice(0,10)+'.json';
   a.click();URL.revokeObjectURL(a.href);
   toast('JSON exportado');
+}
+
+// #14: baja a Excel EXACTAMENTE lo que está filtrado en la vista (sin tope ALL_CAP).
+function exportExcel(which){
+  if(typeof XLSX==='undefined'){toast('No se pudo cargar el motor de Excel','err');return;}
+  const num=v=>{const n=Number(v);return isNaN(n)?'':n;};
+  let rows,cols,name;
+  if(which==='rec'){
+    const search=document.getElementById('src-rec').value,fNodo=document.getElementById('fsel-rec-nodo').value;
+    rows=doSort(filterRows(getRecRows(),search,fNodo,'',null),sortState.rec.col,sortState.rec.dir,recKeys);
+    cols=[['N° Orden','orden'],['Cliente','cliente'],['Nodo','nodo'],['Región','region'],
+      ['F. Comprm. Mín','fechaMin'],['F. Comprm. Máx','fechaMax'],['Volumen m³',r=>num(r.volumen)],['Peso kg',r=>num(r.peso)]];
+    name='recepcion';
+  }else if(which==='des'){
+    const search=document.getElementById('src-des').value,fNodo=document.getElementById('fsel-des-nodo').value,
+      fEstado=document.getElementById('fsel-des-estado').value,fFuente=document.getElementById('fsel-des-fuente').value;
+    rows=doSort(filterRows(getDesRows(),search,fNodo,fEstado,fFuente),sortState.des.col,sortState.des.dir,desKeys);
+    cols=[['N° Orden','orden'],['Cliente','cliente'],['Nodo','nodo'],['Fuente',r=>fuente(r.fuente)],['Estado','estado'],
+      ['Subestado / Motivo','subestado'],['Región','region'],['Ítems',r=>r.items||1],['Volumen m³',r=>num(r.volumen)],
+      ['Peso kg',r=>num(r.peso)],['Fecha dato',r=>fmtD(r.dateStr)],['Editado a mano',r=>r._edited?'Sí':'']];
+    name='despacho';
+  }else{
+    const search=document.getElementById('src-all').value,fNodo=document.getElementById('fsel-all-nodo').value,
+      fEstado=document.getElementById('fsel-all-estado').value,fMod=document.getElementById('fsel-all-modulo').value;
+    rows=doSort(filterRows(getAllRows(),search,fNodo,fEstado,fMod),sortState.all.col,sortState.all.dir,allKeys);
+    cols=[['N° Orden','orden'],['Cliente','cliente'],['Nodo','nodo'],['Módulo',r=>TIPO_LBL[r.fuente]||r.fuente],['Estado','estado'],
+      ['Subestado','subestado'],['Región','region'],['Ítems',r=>r.items||1],['Volumen m³',r=>num(r.volumen)],
+      ['Peso kg',r=>num(r.peso)],['Fecha dato',r=>fmtD(r.dateStr)],['Editado a mano',r=>r._edited?'Sí':'']];
+    name='detalle';
+  }
+  if(!rows.length){toast('No hay filas para exportar con el filtro actual','err');return;}
+  const header=cols.map(c=>c[0]);
+  const aoa=[header].concat(rows.map(r=>cols.map(c=>{const k=c[1];return typeof k==='function'?k(r):(r[k]??'');})));
+  const ws=XLSX.utils.aoa_to_sheet(aoa);
+  const wb=XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb,ws,'Datos');
+  XLSX.writeFile(wb,`${name}_${new Date().toISOString().slice(0,10)}.xlsx`);
+  toast(`✓ ${fmtNum(rows.length)} filas exportadas a Excel`);
+}
+
+// #15/#17: corrección manual de estado por orden (solo admin), persistente y a prueba de re-carga.
+let editingOrden=null;
+function openEstadoEditor(orden,estadoActual){
+  if(!isAuthValid()){toast('🔒 Iniciá sesión para corregir estados','err');return;}
+  editingOrden=orden;
+  document.getElementById('dlg-estado-msg').innerHTML=`Orden <b>${orden}</b> — estado actual: <b>${estadoActual||'—'}</b>`;
+  document.getElementById('estado-sel').innerHTML=ESTADOS_EDITABLES
+    .map(e=>`<option value="${e}"${e===estadoActual?' selected':''}>${e}</option>`).join('');
+  document.getElementById('estado-clear').style.display=getOverrides()[orden]?'inline-flex':'none';
+  document.getElementById('dlg-estado').classList.add('show');
+}
+function saveEstadoOverride(){
+  if(!editingOrden)return;
+  if(!isAuthValid()){toast('🔒 Tu sesión venció — iniciá sesión de nuevo','err');return;}
+  const estado=document.getElementById('estado-sel').value;
+  const s=load();if(!s.overrides)s.overrides={};
+  s.overrides[editingOrden]={estado,by:currentUser(),at:new Date().toISOString()};
+  save(s);closeDlg('dlg-estado');editingOrden=null;rebuildAll();
+  toast('✓ Estado corregido a "'+estado+'" — se mantiene aunque re-subas el archivo');
+}
+function clearEstadoOverride(){
+  if(!editingOrden)return;
+  const s=load();if(s.overrides)delete s.overrides[editingOrden];
+  save(s);closeDlg('dlg-estado');editingOrden=null;rebuildAll();
+  toast('Corrección quitada — la orden vuelve al estado del archivo');
 }
 
 function rebuildAll(){
