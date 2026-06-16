@@ -247,6 +247,14 @@ table.files-table tr:last-child td{border-bottom:none}
 <!-- ══════════ FILTER BAR ══════════ -->
 <div class="filter-bar" id="filter-bar">
   <div class="filter-group">
+    <label>Año</label>
+    <select id="fil-anio" onchange="onAnioMesChange()"><option value="">Todos</option></select>
+  </div>
+  <div class="filter-group">
+    <label>Mes</label>
+    <select id="fil-mes" onchange="onAnioMesChange()"><option value="">Todos</option></select>
+  </div>
+  <div class="filter-group">
     <label>Fecha desde</label>
     <select id="fil-fecha-desde" onchange="applyFilters()">
       <option value="">— Inicio —</option>
@@ -293,13 +301,6 @@ table.files-table tr:last-child td{border-bottom:none}
       <option value="">Todas</option>
       <option value="stock">Solo en stock (no salió)</option>
       <option value="despachado">Solo despachadas</option>
-    </select>
-  </div>
-  <div class="filter-group">
-    <label>Conteo despacho</label>
-    <select id="fil-desmode" onchange="applyFilters()" title="Único: cada orden cuenta una vez (global). Salidas a ruta: cuenta cada vez que la orden salió a ruta (por día), para ver reintentos/rechazos.">
-      <option value="unico">Órdenes únicas</option>
-      <option value="ruta">Salidas a ruta (beta)</option>
     </select>
   </div>
   <button onclick="applyFilters()" style="background:#E8481A;color:#fff;border:none;border-radius:6px;padding:7px 16px;font-size:13px;font-weight:700;cursor:pointer;align-self:flex-end">🔍 Buscar</button>
@@ -793,7 +794,8 @@ const NODO_CSS={'C_RM':'b-crm','C_VIÑA':'b-cvina','R_VIÑA':'b-rvina','R_SERENA
 const CHART_ESTADOS=['Entregado','No entregado','Entrega parcial','Ingresado al sistema'];
 const CHART_COLORS=['#16a34a','#dc2626','#d97706','#9ca3af'];
 const sortState={rec:{col:-1,dir:1},des:{col:-1,dir:1},all:{col:-1,dir:1}};
-const gf={fechaDesde:'',fechaHasta:'',operacion:'',nodo:'',estado:'',stock:''};
+const gf={anio:'',mes:'',fechaDesde:'',fechaHasta:'',operacion:'',nodo:'',estado:'',stock:''};
+const MESES=['','Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
 let GF_STOCK_SET=null; // set de órdenes en stock (recibidas y no despachadas), recalculado en rebuildAll
 const charts={};
 
@@ -888,7 +890,30 @@ async function doSignIn(){
 // ════════════════════════════════════════════
 function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2)}
 function cs(v){return(v==null)?'':String(v).trim()}
-function cn(v){const n=parseFloat(String(v).replace(/[^0-9.]/g,''));return isNaN(n)?0:n}
+// #23: parser de números robusto ante coma/punto. Si la celda ya es número, se usa tal cual
+// (sin ambigüedad). Si es texto: "1.345" y "1,345" → 1.345 (decimal), nunca 1345 (seguro en este
+// dominio: pesos/volúmenes de muebles no llegan a miles por línea). Detecta separador de miles.
+function cn(v){
+  if(v==null)return 0;
+  if(typeof v==='number')return isNaN(v)?0:v;
+  let s=String(v).trim();
+  if(!s)return 0;
+  s=s.replace(/\s/g,'');
+  const neg=s.charAt(0)==='-';
+  const hasDot=s.includes('.'),hasComma=s.includes(',');
+  if(hasDot&&hasComma){
+    // el último separador que aparece es el decimal; el otro es de miles
+    if(s.lastIndexOf(',')>s.lastIndexOf('.'))s=s.replace(/\./g,'').replace(',','.'); // 1.234,56 → 1234.56
+    else s=s.replace(/,/g,'');                                                        // 1,234.56 → 1234.56
+  }else if(hasComma){
+    s=(s.match(/,/g).length>1)?s.replace(/,/g,''):s.replace(',','.');                 // varias comas=miles; una=decimal
+  }else if(hasDot){
+    if(s.match(/\./g).length>1)s=s.replace(/\./g,'');                                 // varios puntos=miles
+  }
+  s=s.replace(/[^0-9.]/g,'');
+  const n=parseFloat(s);
+  return isNaN(n)?0:(neg?-n:n);
+}
 function fmtD(iso){if(!iso)return'—';const[y,m,d]=iso.split('-');return`${d}/${m}/${y}`}
 function fmtTs(ts){return new Date(ts).toLocaleString('es-CL',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'})}
 function fmtNum(v,dec=0){
@@ -937,33 +962,54 @@ function normE(e){
   if(v.includes('ingresado'))return'Ingresado al sistema';
   return cs(e);
 }
+// #18: "el último estado manda". Al consolidar, conservamos los datos del movimiento MÁS RECIENTE
+// (por fecha; si empatan el mismo día, gana el estado más avanzado), pero seguimos sumando vol/peso/items.
+function estadoRank(e){return{'Entregado':5,'Entrega parcial':4,'No entregado':3,'Pendiente':2,'Ingresado al sistema':1}[e]||0;}
+function esMasReciente(a,b){ // ¿a es más reciente/avanzado que b?
+  const da=a.dateStr||'',db=b.dateStr||'';
+  if(da!==db)return da>db;
+  return estadoRank(a.estado)>=estadoRank(b.estado);
+}
+function linesOf(r){return r._lines||[r];}   // #21: líneas que componen la orden
+function mergeKeepLatest(x,r){
+  const vol=x.volumen+r.volumen,peso=x.peso+r.peso,items=x.items+(r.items||1);
+  const base=esMasReciente(r,x)?{...r}:{...x};   // datos del movimiento más reciente
+  base.volumen=vol;base.peso=peso;base.items=items;
+  base._lines=linesOf(x).concat(linesOf(r));   // #21: junta el detalle por línea para el drill-down
+  return base;
+}
 function dedup(rows){
   const m=new Map();
   rows.forEach(r=>{
-    if(m.has(r.orden)){const x=m.get(r.orden);x.volumen+=r.volumen;x.peso+=r.peso;x.items+=(r.items||1);}
-    else{m.set(r.orden,{...r,items:(r.items||1)});}
+    if(m.has(r.orden))m.set(r.orden,mergeKeepLatest(m.get(r.orden),r));
+    else m.set(r.orden,{...r,items:(r.items||1),_lines:linesOf(r)});
   });
   return[...m.values()];
 }
-// BETA: una salida a ruta = una orden por DÍA. No colapsa la misma orden entre días,
-// así se ven los reintentos (rechazo el 5, reintento/entrega el 6, etc.).
+// Una salida a ruta = una orden por DÍA. No colapsa la misma orden entre días,
+// así se ven los reintentos (rechazo el 5, reintento/entrega el 6, etc.). #24: modo fijo de última milla.
 function dedupByDay(rows){
   const m=new Map();
   rows.forEach(r=>{
     const k=r.orden+'||'+r.dateStr;
-    if(m.has(k)){const x=m.get(k);x.volumen+=r.volumen;x.peso+=r.peso;x.items+=(r.items||1);}
-    else{m.set(k,{...r,items:(r.items||1)});}
+    if(m.has(k))m.set(k,mergeKeepLatest(m.get(k),r));
+    else m.set(k,{...r,items:(r.items||1),_lines:linesOf(r)});
   });
   return[...m.values()];
 }
 // Modo de conteo de despacho (lee el switch de la barra): 'unico' (default) | 'ruta' (beta)
-function desMode(){const e=document.getElementById('fil-desmode');return(e&&e.value==='ruta')?'ruta':'unico';}
-function dedupDes(rows){return desMode()==='ruta'?dedupByDay(rows):dedup(rows);}
+// #24: se eliminó el switch beta. La ÚLTIMA MILLA siempre se cuenta por día (salidas a ruta);
+// el STOCK va por orden única (getDesRowsUnique). dedupDes = por día, siempre.
+function dedupDes(rows){return dedupByDay(rows);}
 function colIdx(headers,name){const i=headers.findIndex(h=>cs(h).toLowerCase()===name.toLowerCase());return i>=0?i:null;}
 
 // ════════════════════════════════════════════
 // PARSERS
 // ════════════════════════════════════════════
+// Parsea "entregado / pedido" (ej "1 / 2"); si no trae barra, usa el número como ambos.
+function parseXY(v){const s=cs(v);const m=s.match(/(-?\d+(?:[.,]\d+)?)\s*\/\s*(-?\d+(?:[.,]\d+)?)/);if(m)return{ent:cn(m[1]),ped:cn(m[2])};const n=cn(s);return{ent:n,ped:n};}
+// Busca una columna por coincidencia parcial (tolera acentos/recortes en encabezados).
+function colLike(h,sub){const s=sub.toLowerCase();const i=h.findIndex(x=>cs(x).toLowerCase().includes(s));return i>=0?i:null;}
 function parseTroncal(wb,dateStr){
   const ws=wb.Sheets['DispatchTrack'];if(!ws)return[];
   const d=XLSX.utils.sheet_to_json(ws,{header:1,defval:''});
@@ -973,12 +1019,14 @@ function parseTroncal(wb,dateStr){
   const iTimMin=colIdx(h,'Tiempo min entrega')??18;
   const iTimMax=colIdx(h,'Tiempo max entrega')??19;
   const iRegion=colIdx(h,'Region')??21,iVol=colIdx(h,'Volumen')??30,iPeso=colIdx(h,'Peso')??31;
-  return d.slice(1).filter(r=>cs(r[iOrden])).map(r=>({
+  const iCod=colIdx(h,'Código del producto'),iNom=colIdx(h,'Nombre del producto'),iCD=colIdx(h,'Cantidad despachada');
+  return d.slice(1).filter(r=>cs(r[iOrden])).map(r=>{const xy=parseXY(iCD!=null?r[iCD]:'');return{
     orden:cs(r[iOrden]),cliente:cs(r[iCliente])||'Canon',nodo:ncNode(r[iRegion]),
     fuente:'troncal',estado:normE(r[iEstado]),subestado:cs(r[iSub]),
     region:cs(r[iRegion]),volumen:cn(r[iVol]),peso:cn(r[iPeso]),
+    codItem:iCod!=null?cs(r[iCod]):'',descItem:iNom!=null?cs(r[iNom]):'',ped:xy.ped,ent:xy.ent,
     fechaMin:fmtDateCell(r[iTimMin]),fechaMax:fmtDateCell(r[iTimMax]),dateStr
-  }));
+  };});
 }
 function parseUM(wb,dateStr){
   const ws=wb.Sheets['DispatchTrack'];if(!ws)return[];
@@ -987,13 +1035,15 @@ function parseUM(wb,dateStr){
   const iOrden=colIdx(h,'Orden')??2,iCliente=colIdx(h,'Cliente')??3;
   const iEstado=colIdx(h,'Estado')??6,iSub=colIdx(h,'Subestado')??7;
   const iRegion=colIdx(h,'Region')??22,iVol=colIdx(h,'Volumen')??31,iPeso=colIdx(h,'Peso')??32;
+  const iCod=colIdx(h,'Código del producto'),iNom=colIdx(h,'Nombre del producto'),iCD=colIdx(h,'Cantidad despachada');
   return d.slice(1).filter(r=>cs(r[iOrden]))
     .filter(r=>cs(r[iSub]).toLowerCase()!=='cargado troncal')
-    .map(r=>({
+    .map(r=>{const xy=parseXY(iCD!=null?r[iCD]:'');return{
       orden:cs(r[iOrden]),cliente:cs(r[iCliente])||'Canon',nodo:ncNode(r[iRegion]),
       fuente:'um',estado:normE(r[iEstado]),subestado:cs(r[iSub]),
-      region:cs(r[iRegion]),volumen:cn(r[iVol]),peso:cn(r[iPeso]),dateStr
-    }));
+      region:cs(r[iRegion]),volumen:cn(r[iVol]),peso:cn(r[iPeso]),
+      codItem:iCod!=null?cs(r[iCod]):'',descItem:iNom!=null?cs(r[iNom]):'',ped:xy.ped,ent:xy.ent,dateStr
+    };});
 }
 function parseRosen(wb,dateStr){
   const ws=wb.Sheets['PdE'];if(!ws)return[];
@@ -1007,10 +1057,18 @@ function parseRosen(wb,dateStr){
   const iUnidades=colIdx(h,'Unidades')??20;
   const iEstado=['Estado de la órden','Estado de la orden','Estado'].map(n=>colIdx(h,n)).find(i=>i!=null)??28;
   const iMotivo=colIdx(h,'Motivo')??29;
+  const iCodItem=colIdx(h,'Código Ítem')??23,iDescItem=colIdx(h,'Descripción Ítem')??24;
+  const iUnidItem=colIdx(h,'Unidades Ítem')??25,iEntItem=colIdx(h,'Unidades Entregadas Ítem')??26;
+  const iEstItem=colLike(h,'estado del ítem')??colLike(h,'estado del item');
+  const iFcMax=colLike(h,'compromiso má'),iFcMin=colLike(h,'compromiso mí');
   return d.slice(1).filter(r=>cs(r[iOrden])).map(r=>({
     orden:cs(r[iOrden]),cliente:cs(r[iCliente])||'Rosen',nodo:nrNode(r[iGrupo],r[iRegion]),
     fuente:'rosen',estado:normE(r[iEstado]),subestado:cs(r[iMotivo]),
-    region:cs(r[iRegion])||cs(r[iComuna]),volumen:cn(r[iUnidades]),peso:0,dateStr
+    region:cs(r[iRegion])||cs(r[iComuna]),volumen:cn(r[iUnidades]),peso:0,
+    codItem:cs(r[iCodItem]),descItem:cs(r[iDescItem]),ped:cn(r[iUnidItem]),ent:cn(r[iEntItem]),
+    estadoItem:iEstItem!=null?normE(r[iEstItem]):'',
+    fechaMin:iFcMin!=null?fmtDateCell(r[iFcMin]):'',fechaMax:iFcMax!=null?fmtDateCell(r[iFcMax]):'',
+    dateStr
   }));
 }
 
@@ -1044,8 +1102,10 @@ function processFile(file,type,el){
       else rawRows=parseRosen(wb,dateStr);
       if(!rawRows.length){toast('⚠️ No se encontraron datos en el archivo','err');return;}
       const dedupRows=dedup(rawRows);
+      // #21: guardamos las LÍNEAS crudas (no las colapsadas) para tener el detalle por línea en el drill-down.
+      // El conteo por orden se reconstruye al leer (dedup). Lo ya cargado en formato viejo sigue funcionando.
       const entry={id:uid(),name:file.name,type,dateStr,loadedAt:Date.now(),
-        totalRows:rawRows.length,uniqueOrders:dedupRows.length,rows:dedupRows};
+        totalRows:rawRows.length,uniqueOrders:dedupRows.length,rows:rawRows};
       const s=load();
       // #4: si ya existe un archivo con el mismo nombre, o del mismo tipo+fecha, lo REEMPLAZA
       // (evita duplicar y que m³/peso se disparen al sumar las copias).
@@ -1082,6 +1142,9 @@ function applyOv(rows){
 }
 function getRecRows(){return dedup(getRows('troncal')).filter(r=>r.estado==='Ingresado al sistema');}
 function getDesRows(){return applyOv(dedupDes([...getRows('um'),...getRows('rosen')]));}
+// Para el STOCK usamos SIEMPRE órdenes únicas (último estado), sin importar el switch beta/ruta.
+// El beta (salidas a ruta por día) es solo para el nivel de servicio de última milla, no para el stock.
+function getDesRowsUnique(){return applyOv(dedup([...getRows('um'),...getRows('rosen')]));}
 function getAllRows(){
   const rec=dedup(getRows('troncal'));
   const des=dedupDes([...getRows('um'),...getRows('rosen')]);
@@ -1089,37 +1152,47 @@ function getAllRows(){
 }
 function getStockSets(){
   const ov=getOverrides();
-  const cerrada=o=>ov[o]&&ESTADOS_CIERRE.includes(ov[o].estado); // resuelta a mano → ya no es stock pendiente
+  const cerrada=o=>ov[o]&&ESTADOS_CIERRE.includes(ov[o].estado); // resuelta a mano (Devuelto/Extraviado/Entregado…) → fuera de stock
   const recOrders=new Set(getRecRows().map(r=>r.orden));
-  const desOrders=new Set([...getRows('um'),...getRows('rosen')].map(r=>r.orden));
-  const enDespacho=new Set([...recOrders].filter(o=>desOrders.has(o)));
-  const enStock=new Set([...recOrders].filter(o=>!desOrders.has(o)&&!cerrada(o)));
+  // Último estado de despacho por orden, SIEMPRE en único (no depende del switch beta/ruta).
+  const desEstado={};getDesRowsUnique().forEach(r=>{desEstado[r.orden]=r.estado;});
+  const desOrders=new Set(Object.keys(desEstado));
+  // #18 EN STOCK = recibidas no cerradas a mano que: nunca tuvieron despacho, O su último estado
+  // es exactamente "No entregado" (volvió a bodega). "Pendiente"/en proceso y Entregado/Parcial NO son stock.
+  const enStock=new Set([...recOrders].filter(o=>{
+    if(cerrada(o))return false;
+    const e=desEstado[o];
+    if(e===undefined)return true;       // nunca despachada → stock
+    return e==='No entregado';          // volvió → stock; resto (Pendiente, Entregado, Parcial…) → no
+  }));
+  // En Despacho = recibidas con registro de despacho que NO volvieron como No entregado.
+  const enDespacho=new Set([...recOrders].filter(o=>desOrders.has(o)&&desEstado[o]!=='No entregado'&&!enStock.has(o)));
   return{recOrders,desOrders,enDespacho,enStock};
 }
 
 // ════════════════════════════════════════════
 // GLOBAL FILTERS
 // ════════════════════════════════════════════
+function fval(id){const e=document.getElementById(id);return e?e.value:'';}
 function applyFilters(){
-  gf.fechaDesde=document.getElementById('fil-fecha-desde').value;
-  gf.fechaHasta=document.getElementById('fil-fecha-hasta').value;
-  gf.operacion=document.getElementById('fil-operacion').value;
-  gf.nodo=document.getElementById('fil-nodo').value;
-  gf.estado=document.getElementById('fil-estado').value;
-  gf.stock=document.getElementById('fil-stock').value;
+  gf.anio=fval('fil-anio');gf.mes=fval('fil-mes');
+  gf.fechaDesde=fval('fil-fecha-desde');gf.fechaHasta=fval('fil-fecha-hasta');
+  gf.operacion=fval('fil-operacion');gf.nodo=fval('fil-nodo');
+  gf.estado=fval('fil-estado');gf.stock=fval('fil-stock');
   rebuildAll();
 }
 function clearFilters(){
-  ['fil-fecha-desde','fil-fecha-hasta','fil-operacion','fil-nodo','fil-estado','fil-stock']
+  ['fil-anio','fil-mes','fil-fecha-desde','fil-fecha-hasta','fil-operacion','fil-nodo','fil-estado','fil-stock']
     .forEach(id=>{const e=document.getElementById(id);if(e)e.value='';});
   Object.keys(gf).forEach(k=>gf[k]='');
   rebuildAll();
 }
-function gfActive(){return!!(gf.fechaDesde||gf.fechaHasta||gf.operacion||gf.nodo||gf.estado||gf.stock);}
+function gfActive(){return!!(gf.anio||gf.mes||gf.fechaDesde||gf.fechaHasta||gf.operacion||gf.nodo||gf.estado||gf.stock);}
 function matchGF(r){
-  // Fechas (dateStr es YYYY-MM-DD, comparación lexicográfica):
-  //  - una sola fecha elegida → ese día exacto
-  //  - ambas elegidas → rango Desde–Hasta
+  // #25 Año (YYYY) y Mes (YYYY-MM) sobre dateStr (YYYY-MM-DD)
+  if(gf.anio&&(r.dateStr||'').slice(0,4)!==gf.anio)return false;
+  if(gf.mes&&(r.dateStr||'').slice(0,7)!==gf.mes)return false;
+  // Fechas: una sola = día exacto; ambas = rango Desde–Hasta
   const fd=gf.fechaDesde,fh=gf.fechaHasta;
   if(fd&&fh){ if(r.dateStr<fd||r.dateStr>fh)return false; }
   else if(fd){ if(r.dateStr!==fd)return false; }
@@ -1137,13 +1210,27 @@ function matchGF(r){
   }
   return true;
 }
+// #25 Cascada Año → Mes → Fecha: al cambiar año/mes se acotan las opciones de mes y de fecha.
+function onAnioMesChange(){updateFechaOptions();applyFilters();}
 function updateFechaOptions(){
-  const s=load();
-  const dates=[...new Set(s.files.map(f=>f.dateStr))].sort().reverse();
+  const dates=[...new Set(load().files.map(f=>f.dateStr))].filter(Boolean).sort();
+  // Año
+  const anios=[...new Set(dates.map(d=>d.slice(0,4)))].sort().reverse();
+  const aSel=document.getElementById('fil-anio');
+  if(aSel){const cur=aSel.value;aSel.innerHTML='<option value="">Todos</option>'+anios.map(a=>`<option value="${a}"${a===cur?' selected':''}>${a}</option>`).join('');if(!anios.includes(cur))aSel.value='';}
+  const anio=aSel?aSel.value:'';
+  // Mes (acotado por año)
+  const meses=[...new Set(dates.filter(d=>!anio||d.slice(0,4)===anio).map(d=>d.slice(0,7)))].sort().reverse();
+  const mSel=document.getElementById('fil-mes');
+  if(mSel){const cur=mSel.value;mSel.innerHTML='<option value="">Todos</option>'+meses.map(m=>{const p=m.split('-');return`<option value="${m}"${m===cur?' selected':''}>${MESES[+p[1]]} ${p[0]}</option>`;}).join('');if(!meses.includes(cur))mSel.value='';}
+  const mes=mSel?mSel.value:'';
+  // Fechas (acotadas por año y mes)
+  const fdates=dates.filter(d=>(!anio||d.slice(0,4)===anio)&&(!mes||d.slice(0,7)===mes)).sort().reverse();
   [['fil-fecha-desde','— Inicio —'],['fil-fecha-hasta','— Fin —']].forEach(([id,lbl])=>{
     const sel=document.getElementById(id);if(!sel)return;
     const cur=sel.value;
-    sel.innerHTML=`<option value="">${lbl}</option>`+dates.map(d=>`<option value="${d}"${d===cur?' selected':''}>${fmtD(d)}</option>`).join('');
+    sel.innerHTML=`<option value="">${lbl}</option>`+fdates.map(d=>`<option value="${d}"${d===cur?' selected':''}>${fmtD(d)}</option>`).join('');
+    if(!fdates.includes(cur))sel.value='';
   });
 }
 
@@ -1468,7 +1555,7 @@ function renderRecTable(){
   const shown=rows.slice(0,ALL_CAP);
   cnt.textContent=rows.length>ALL_CAP?`${fmtNum(ALL_CAP)} de ${fmtNum(rows.length)}`:fmtNum(rows.length)+' registros';
   tbody.innerHTML=shown.map(r=>`<tr>
-    <td class="order-id">${r.orden}</td><td>${r.cliente}</td><td>${nodoBadge(r.nodo)}</td>
+    <td class="order-id" style="cursor:pointer;text-decoration:underline" title="Ver todos los movimientos de esta orden" onclick="openOrder('${r.orden}')">${r.orden}</td><td>${r.cliente}</td><td>${nodoBadge(r.nodo)}</td>
     <td>${r.region||'—'}</td>
     <td>${r.dateStr?`<span class="fecha-chip">${fmtD(r.dateStr)}</span>`:'—'}</td>
     <td>${r.fechaMin?`<span class="fecha-chip">${r.fechaMin}</span>`:'—'}</td>
@@ -1499,7 +1586,7 @@ function renderDesTable(){
   const shown=rows.slice(0,ALL_CAP);
   cnt.textContent=rows.length>ALL_CAP?`${fmtNum(ALL_CAP)} de ${fmtNum(rows.length)}`:fmtNum(rows.length)+' registros';
   tbody.innerHTML=shown.map(r=>`<tr>
-    <td class="order-id">${r.orden}</td><td>${r.cliente}</td><td>${nodoBadge(r.nodo)}</td>
+    <td class="order-id" style="cursor:pointer;text-decoration:underline" title="Ver todos los movimientos de esta orden" onclick="openOrder('${r.orden}')">${r.orden}</td><td>${r.cliente}</td><td>${nodoBadge(r.nodo)}</td>
     <td style="color:#6c757d">${fuente(r.fuente)}</td><td>${estBadge(r.estado)}${editedMark(r)}</td>
     <td style="color:#6c757d">${r.subestado||'—'}</td><td>${r.region||'—'}</td>
     <td style="text-align:right">${r.items||1}</td>
@@ -1534,16 +1621,51 @@ function renderAllTable(){
   const shown=rows.slice(0,ALL_CAP);
   cnt.textContent=rows.length>ALL_CAP?`${fmtNum(ALL_CAP)} de ${fmtNum(rows.length)}`:fmtNum(rows.length)+' registros';
   const puedeEditar=isAuthValid();
-  tbody.innerHTML=shown.map(r=>`<tr>
-    <td class="order-id">${r.orden}</td><td>${r.cliente}</td><td>${nodoBadge(r.nodo)}</td>
+  tbody.innerHTML=shown.map((r,idx)=>{
+    const lid='ld-all-'+idx;
+    return `<tr>
+    <td class="order-id"><span onclick="toggleRow('${lid}',this)" title="Ver líneas" style="cursor:pointer;color:#E8481A;font-weight:700;margin-right:6px;user-select:none">▸</span>${r.orden}</td><td>${r.cliente}</td><td>${nodoBadge(r.nodo)}</td>
     <td>${badge(TIPO_LBL[r.fuente],TIPO_CSS[r.fuente])}</td><td>${estBadge(r.estado)}${editedMark(r)}</td>
     <td style="color:#6c757d">${r.subestado||'—'}</td><td>${r.region||'—'}</td>
     <td style="text-align:right">${r.items||1}</td>
     <td style="text-align:right">${r.volumen>0?fmtNum(r.volumen,3):'—'}</td>
     <td style="text-align:right">${r.peso>0?fmtNum(r.peso,1):'—'}</td>
     <td><span class="fecha-chip">${fmtD(r.dateStr)}</span></td>
-    <td>${puedeEditar?`<button class="btn-edit" onclick="openEstadoEditor('${r.orden}','${r.estado}')">✎ Estado</button>`:'<span style="color:#cbd5e1">—</span>'}</td></tr>`).join('')
+    <td>${puedeEditar?`<button class="btn-edit" onclick="openEstadoEditor('${r.orden}','${r.estado}')">✎ Estado</button>`:'<span style="color:#cbd5e1">—</span>'}</td></tr>
+    <tr id="${lid}" class="node-detail-row"><td colspan="12"><div class="node-detail-inner">${lineDetailHTML(r)}</div></td></tr>`;
+  }).join('')
     +(rows.length>ALL_CAP?`<tr><td colspan="12" style="text-align:center;padding:10px;color:#d97706;font-weight:600">Mostrando ${fmtNum(ALL_CAP)} de ${fmtNum(rows.length)} — afiná el filtro para ver el resto</td></tr>`:'');
+}
+// #21/#20: detalle por línea de una orden (entregado/pedido, estado y motivo) para el drill-down.
+function lineDetailHTML(r){
+  const ls=(r._lines||[]).filter(l=>l&&(l.codItem||l.descItem));
+  if(!ls.length)return '<div style="color:#adb5bd;font-size:12px;padding:6px 2px">Sin detalle por línea (carga anterior a esta versión — re-subí el archivo para verlo).</div>';
+  const filas=ls.map(l=>{
+    const ped=+l.ped||0,ent=+l.ent||0;
+    const ok=ped>0&&ent>=ped,parc=ent>0&&ent<ped;
+    const chip=ok?'<span style="color:#16a34a;font-weight:700">✓</span>':parc?'<span style="color:#d97706;font-weight:700">◐</span>':'<span style="color:#dc2626;font-weight:700">✗</span>';
+    const estL=l.estadoItem||(ok?'Entregado':parc?'Entrega parcial':(r.estado||'—'));
+    return `<tr><td>${chip}</td><td>${l.codItem||'—'}</td><td>${l.descItem||'—'}</td>
+      <td style="text-align:right">${fmtNum(ent)} / ${fmtNum(ped)}</td><td>${estBadge(estL)}</td>
+      <td style="color:#6c757d">${l.subestado||'—'}</td></tr>`;
+  }).join('');
+  return `<table><thead><tr><th></th><th>SKU</th><th>Descripción</th><th style="text-align:right">Entreg./Pedido</th><th>Estado línea</th><th>Motivo</th></tr></thead><tbody>${filas}</tbody></table>`;
+}
+function toggleRow(id,btn){
+  const row=document.getElementById(id);if(!row)return;
+  const open=row.classList.toggle('open');
+  if(btn)btn.textContent=open?'▾':'▸';
+}
+// #20: clic en el N° de orden (en Recepción/Despacho) → salta a Detalle Órdenes filtrado por esa
+// orden, mostrando TODOS sus movimientos (limpia los filtros para no ocultar ninguno).
+function openOrder(orden){
+  clearFilters();
+  const tabEl=document.querySelector('.tab[onclick*="detalle"]');
+  showTab('detalle',tabEl);
+  ['fsel-all-nodo','fsel-all-modulo','fsel-all-estado'].forEach(id=>{const e=document.getElementById(id);if(e)e.value='';});
+  const s=document.getElementById('src-all');if(s)s.value=orden;
+  renderAllTable();
+  toast('Mostrando todos los movimientos de la orden '+orden);
 }
 
 function srt(tbl,col){
