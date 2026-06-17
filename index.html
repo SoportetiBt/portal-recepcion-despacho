@@ -393,6 +393,8 @@ table.files-table tr:last-child td{border-bottom:none}
           <option value="">Todos los nodos</option>
           <option value="C_RM">C_RM</option><option value="C_VIÑA">C_VIÑA</option>
         </select>
+        <select class="f-sel" id="fsel-rec-compdesde" onchange="renderRecTable()" title="Fecha de compromiso desde"><option value="">Compr. desde</option></select>
+        <select class="f-sel" id="fsel-rec-comphasta" onchange="renderRecTable()" title="Fecha de compromiso hasta"><option value="">Compr. hasta</option></select>
         <button class="btn btn-outline btn-sm" onclick="exportExcel('rec')" title="Baja a Excel exactamente lo que está filtrado">⬇ Excel</button>
       </div>
     </div>
@@ -481,6 +483,8 @@ table.files-table tr:last-child td{border-bottom:none}
           <option value="um">Último Metro</option>
           <option value="rosen">Rosen</option>
         </select>
+        <select class="f-sel" id="fsel-des-compdesde" onchange="renderDesTable()" title="Fecha de compromiso desde"><option value="">Compr. desde</option></select>
+        <select class="f-sel" id="fsel-des-comphasta" onchange="renderDesTable()" title="Fecha de compromiso hasta"><option value="">Compr. hasta</option></select>
         <button class="btn btn-outline btn-sm" onclick="exportExcel('des')" title="Baja a Excel exactamente lo que está filtrado">⬇ Excel</button>
       </div>
     </div>
@@ -498,9 +502,10 @@ table.files-table tr:last-child td{border-bottom:none}
           <th onclick="srt('des',8)" style="text-align:right">Vol m³</th>
           <th onclick="srt('des',9)" style="text-align:right">Peso kg</th>
           <th onclick="srt('des',10)">Fecha dato</th>
+          <th>F. Compromiso</th>
         </tr></thead>
         <tbody id="tbody-des-orders">
-          <tr class="empty-row-msg"><td colspan="11"><span>📂</span>Cargá los archivos de despacho en la pestaña "Cargar Archivos"</td></tr>
+          <tr class="empty-row-msg"><td colspan="12"><span>📂</span>Cargá los archivos de despacho en la pestaña "Cargar Archivos"</td></tr>
         </tbody>
       </table>
     </div>
@@ -555,10 +560,11 @@ table.files-table tr:last-child td{border-bottom:none}
           <th onclick="srt('all',8)" style="text-align:right">Vol m³</th>
           <th onclick="srt('all',9)" style="text-align:right">Peso kg</th>
           <th onclick="srt('all',10)">Fecha dato</th>
+          <th>F. Compromiso</th>
           <th>Acción</th>
         </tr></thead>
         <tbody id="tbody-all-orders">
-          <tr class="empty-row-msg"><td colspan="12"><span>📂</span>Cargá archivos para ver el detalle de órdenes</td></tr>
+          <tr class="empty-row-msg"><td colspan="13"><span>📂</span>Cargá archivos para ver el detalle de órdenes</td></tr>
         </tbody>
       </table>
     </div>
@@ -1217,6 +1223,12 @@ function getCompromisoMap(){
   [...getRows('troncal'),...getRows('rosen')].forEach(r=>{const c=dmyToIso(r.fechaMax)||dmyToIso(r.fechaMin);if(c&&!m[r.orden])m[r.orden]=c;});
   return m;
 }
+// Aplica el filtro de fecha de compromiso (desde/hasta) de una vista (prefix: 'all'|'des'|'rec').
+function filterComp(rows,cm,prefix){
+  const d=fval('fsel-'+prefix+'-compdesde'),h=fval('fsel-'+prefix+'-comphasta');
+  if(!d&&!h)return rows;
+  return rows.filter(r=>{const c=cm[r.orden]||'';if(!c)return false;if(d&&h)return c>=d&&c<=h;if(d)return c===d;return c===h;});
+}
 
 // ════════════════════════════════════════════
 // GLOBAL FILTERS
@@ -1288,7 +1300,9 @@ function updateFechaOptions(){
 // Puebla los selectores de fecha de COMPROMISO del Detalle (desde/hasta), preservando lo elegido.
 function updateCompromisoOptions(){
   const cdates=[...new Set(Object.values(getCompromisoMap()))].filter(Boolean).sort().reverse();
-  [['fsel-all-compdesde','Compr. desde'],['fsel-all-comphasta','Compr. hasta']].forEach(([id,lbl])=>{
+  [['fsel-all-compdesde','Compr. desde'],['fsel-all-comphasta','Compr. hasta'],
+   ['fsel-des-compdesde','Compr. desde'],['fsel-des-comphasta','Compr. hasta'],
+   ['fsel-rec-compdesde','Compr. desde'],['fsel-rec-comphasta','Compr. hasta']].forEach(([id,lbl])=>{
     const sel=document.getElementById(id);if(!sel)return;const cur=sel.value;
     sel.innerHTML=`<option value="">${lbl}</option>`+cdates.map(d=>`<option value="${d}"${d===cur?' selected':''}>${fmtD(d)}</option>`).join('');
     if(!cdates.includes(cur))sel.value='';
@@ -1618,15 +1632,18 @@ function renderRecTable(){
   const total=getRecRows().length;
   const search=document.getElementById('src-rec').value;
   const fNodo=document.getElementById('fsel-rec-nodo').value;
+  const fCompD=fval('fsel-rec-compdesde'),fCompH=fval('fsel-rec-comphasta');
   if(!total){cnt.textContent='0 registros';tbody.innerHTML=`<tr class="empty-row-msg"><td colspan="9"><span>📂</span>Cargá el Troncal Canon</td></tr>`;return;}
-  const hasFilter=!!(search||fNodo)||gfActive();
+  const hasFilter=!!(search||fNodo||fCompD||fCompH)||gfActive();
   // Igual que Detalle Órdenes / Despacho: el detalle queda vacío hasta filtrar/buscar.
   if(!hasFilter){
     cnt.textContent=fmtNum(total)+' en total';
     tbody.innerHTML=`<tr class="empty-row-msg"><td colspan="9"><span>🔎</span>Aplicá un filtro o buscá arriba para ver las órdenes (${fmtNum(total)} en total)</td></tr>`;
     return;
   }
-  const rows=doSort(filterRows(getRecRows(),search,fNodo,'',null),sortState.rec.col,sortState.rec.dir,recKeys);
+  const cm=getCompromisoMap();
+  let rows=doSort(filterRows(getRecRows(),search,fNodo,'',null),sortState.rec.col,sortState.rec.dir,recKeys);
+  if(fCompD||fCompH){rows=rows.filter(r=>{const c=cm[r.orden]||'';if(!c)return false;if(fCompD&&fCompH)return c>=fCompD&&c<=fCompH;if(fCompD)return c===fCompD;return c===fCompH;});}
   if(!rows.length){cnt.textContent='0 registros';tbody.innerHTML=`<tr class="empty-row-msg"><td colspan="9"><span>🔍</span>Sin coincidencias</td></tr>`;return;}
   const shown=rows.slice(0,ALL_CAP);
   cnt.textContent=rows.length>ALL_CAP?`${fmtNum(ALL_CAP)} de ${fmtNum(rows.length)}`:fmtNum(rows.length)+' registros';
@@ -1649,16 +1666,19 @@ function renderDesTable(){
   const fNodo=document.getElementById('fsel-des-nodo').value;
   const fEstado=document.getElementById('fsel-des-estado').value;
   const fFuente=document.getElementById('fsel-des-fuente').value;
-  if(!total){cnt.textContent='0 registros';tbody.innerHTML=`<tr class="empty-row-msg"><td colspan="11"><span>📂</span>Cargá los archivos de despacho</td></tr>`;return;}
-  const hasFilter=!!(search||fNodo||fEstado||fFuente)||gfActive();
+  const fCompD=fval('fsel-des-compdesde'),fCompH=fval('fsel-des-comphasta');
+  if(!total){cnt.textContent='0 registros';tbody.innerHTML=`<tr class="empty-row-msg"><td colspan="12"><span>📂</span>Cargá los archivos de despacho</td></tr>`;return;}
+  const hasFilter=!!(search||fNodo||fEstado||fFuente||fCompD||fCompH)||gfActive();
   // #9: el cuadro de detalle queda en blanco hasta aplicar un filtro/búsqueda.
   if(!hasFilter){
     cnt.textContent=fmtNum(total)+' en total';
-    tbody.innerHTML=`<tr class="empty-row-msg"><td colspan="11"><span>🔎</span>Aplicá un filtro o buscá arriba para ver las órdenes (${fmtNum(total)} en total)</td></tr>`;
+    tbody.innerHTML=`<tr class="empty-row-msg"><td colspan="12"><span>🔎</span>Aplicá un filtro o buscá arriba para ver las órdenes (${fmtNum(total)} en total)</td></tr>`;
     return;
   }
-  const rows=doSort(filterRows(getDesRows(),search,fNodo,fEstado,fFuente),sortState.des.col,sortState.des.dir,desKeys);
-  if(!rows.length){cnt.textContent='0 registros';tbody.innerHTML=`<tr class="empty-row-msg"><td colspan="11"><span>🔍</span>Sin coincidencias</td></tr>`;return;}
+  const cm=getCompromisoMap();
+  let rows=doSort(filterRows(getDesRows(),search,fNodo,fEstado,fFuente),sortState.des.col,sortState.des.dir,desKeys);
+  if(fCompD||fCompH){rows=rows.filter(r=>{const c=cm[r.orden]||'';if(!c)return false;if(fCompD&&fCompH)return c>=fCompD&&c<=fCompH;if(fCompD)return c===fCompD;return c===fCompH;});}
+  if(!rows.length){cnt.textContent='0 registros';tbody.innerHTML=`<tr class="empty-row-msg"><td colspan="12"><span>🔍</span>Sin coincidencias</td></tr>`;return;}
   const shown=rows.slice(0,ALL_CAP);
   cnt.textContent=rows.length>ALL_CAP?`${fmtNum(ALL_CAP)} de ${fmtNum(rows.length)}`:fmtNum(rows.length)+' registros';
   tbody.innerHTML=shown.map(r=>`<tr>
@@ -1668,8 +1688,9 @@ function renderDesTable(){
     <td style="text-align:right">${r.items||1}</td>
     <td style="text-align:right">${r.volumen>0?fmtNum(r.volumen,3):'—'}</td>
     <td style="text-align:right">${r.peso>0?fmtNum(r.peso,1):'—'}</td>
-    <td><span class="fecha-chip">${fmtD(r.dateStr)}</span></td></tr>`).join('')
-    +(rows.length>ALL_CAP?`<tr><td colspan="11" style="text-align:center;padding:10px;color:#d97706;font-weight:600">Mostrando ${fmtNum(ALL_CAP)} de ${fmtNum(rows.length)} — afiná el filtro para ver el resto</td></tr>`:'');
+    <td><span class="fecha-chip">${fmtD(r.dateStr)}</span></td>
+    <td>${cm[r.orden]?`<span class="fecha-chip">${fmtD(cm[r.orden])}</span>`:'—'}</td></tr>`).join('')
+    +(rows.length>ALL_CAP?`<tr><td colspan="12" style="text-align:center;padding:10px;color:#d97706;font-weight:600">Mostrando ${fmtNum(ALL_CAP)} de ${fmtNum(rows.length)} — afiná el filtro para ver el resto</td></tr>`:'');
 }
 
 // Marca ✎ para órdenes con corrección manual de estado (#15).
@@ -1685,24 +1706,24 @@ function renderAllTable(){
   const fEstado=document.getElementById('fsel-all-estado').value;
   const fMod=document.getElementById('fsel-all-modulo').value;
   const fCompD=fval('fsel-all-compdesde'),fCompH=fval('fsel-all-comphasta');
-  if(!total){cnt.textContent='0 registros';tbody.innerHTML=`<tr class="empty-row-msg"><td colspan="12"><span>📂</span>Cargá archivos para ver el detalle de órdenes</td></tr>`;return;}
+  if(!total){cnt.textContent='0 registros';tbody.innerHTML=`<tr class="empty-row-msg"><td colspan="13"><span>📂</span>Cargá archivos para ver el detalle de órdenes</td></tr>`;return;}
   const hasFilter=!!(search||fNodo||fEstado||fMod||fCompD||fCompH)||gfActive();
   // #7: no renderizar las miles de órdenes por defecto; recién al filtrar/buscar.
   if(!hasFilter){
     cnt.textContent=fmtNum(total)+' en total';
-    tbody.innerHTML=`<tr class="empty-row-msg"><td colspan="12"><span>🔎</span>Aplicá un filtro o buscá arriba para ver las órdenes (${fmtNum(total)} en total)</td></tr>`;
+    tbody.innerHTML=`<tr class="empty-row-msg"><td colspan="13"><span>🔎</span>Aplicá un filtro o buscá arriba para ver las órdenes (${fmtNum(total)} en total)</td></tr>`;
     return;
   }
+  const cm=getCompromisoMap();
   let rows=doSort(filterRows(getAllRows(),search,fNodo,fEstado,fMod),sortState.all.col,sortState.all.dir,allKeys);
   // Filtro por fecha de COMPROMISO (una sola = día exacto; ambas = rango), por orden.
   if(fCompD||fCompH){
-    const cm=getCompromisoMap();
     rows=rows.filter(r=>{const c=cm[r.orden]||'';if(!c)return false;
       if(fCompD&&fCompH)return c>=fCompD&&c<=fCompH;
       if(fCompD)return c===fCompD;
       return c===fCompH;});
   }
-  if(!rows.length){cnt.textContent='0 registros';tbody.innerHTML=`<tr class="empty-row-msg"><td colspan="12"><span>🔍</span>Sin coincidencias (probá ajustar el filtro de compromiso)</td></tr>`;return;}
+  if(!rows.length){cnt.textContent='0 registros';tbody.innerHTML=`<tr class="empty-row-msg"><td colspan="13"><span>🔍</span>Sin coincidencias (probá ajustar el filtro de compromiso)</td></tr>`;return;}
   const shown=rows.slice(0,ALL_CAP);
   cnt.textContent=rows.length>ALL_CAP?`${fmtNum(ALL_CAP)} de ${fmtNum(rows.length)}`:fmtNum(rows.length)+' registros';
   const puedeEditar=isAuthValid();
@@ -1716,10 +1737,11 @@ function renderAllTable(){
     <td style="text-align:right">${r.volumen>0?fmtNum(r.volumen,3):'—'}</td>
     <td style="text-align:right">${r.peso>0?fmtNum(r.peso,1):'—'}</td>
     <td><span class="fecha-chip">${fmtD(r.dateStr)}</span></td>
+    <td>${cm[r.orden]?`<span class="fecha-chip">${fmtD(cm[r.orden])}</span>`:'—'}</td>
     <td>${puedeEditar?`<button class="btn-edit" onclick="openEstadoEditor('${r.orden}','${r.estado}')">✎ Estado</button>`:'<span style="color:#cbd5e1">—</span>'}</td></tr>
-    <tr id="${lid}" class="node-detail-row"><td colspan="12"><div class="node-detail-inner">${lineDetailHTML(r)}</div></td></tr>`;
+    <tr id="${lid}" class="node-detail-row"><td colspan="13"><div class="node-detail-inner">${lineDetailHTML(r)}</div></td></tr>`;
   }).join('')
-    +(rows.length>ALL_CAP?`<tr><td colspan="12" style="text-align:center;padding:10px;color:#d97706;font-weight:600">Mostrando ${fmtNum(ALL_CAP)} de ${fmtNum(rows.length)} — afiná el filtro para ver el resto</td></tr>`:'');
+    +(rows.length>ALL_CAP?`<tr><td colspan="13" style="text-align:center;padding:10px;color:#d97706;font-weight:600">Mostrando ${fmtNum(ALL_CAP)} de ${fmtNum(rows.length)} — afiná el filtro para ver el resto</td></tr>`:'');
   updateBulkUI();const _ca=document.getElementById('chk-all');if(_ca)_ca.checked=false;
 }
 // #21/#20: detalle por línea de una orden (entregado/pedido, estado y motivo) para el drill-down.
@@ -1881,10 +1903,11 @@ function exportJSON(){
 function exportExcel(which){
   if(typeof XLSX==='undefined'){toast('No se pudo cargar el motor de Excel','err');return;}
   const num=v=>{const n=Number(v);return isNaN(n)?'':n;};
+  const cm=getCompromisoMap();const comp=r=>{const c=cm[r.orden];return c?fmtD(c):'';};
   let rows,cols,name;
   if(which==='rec'){
     const search=document.getElementById('src-rec').value,fNodo=document.getElementById('fsel-rec-nodo').value;
-    rows=doSort(filterRows(getRecRows(),search,fNodo,'',null),sortState.rec.col,sortState.rec.dir,recKeys);
+    rows=filterComp(doSort(filterRows(getRecRows(),search,fNodo,'',null),sortState.rec.col,sortState.rec.dir,recKeys),cm,'rec');
     cols=[['N° Orden','orden'],['Cliente','cliente'],['Nodo','nodo'],['Región','region'],
       ['F. Recepción',r=>fmtD(r.dateStr)],['F. Comprm. Mín','fechaMin'],['F. Comprm. Máx','fechaMax'],
       ['Volumen m³',r=>num(r.volumen)],['Peso kg',r=>num(r.peso)]];
@@ -1892,17 +1915,17 @@ function exportExcel(which){
   }else if(which==='des'){
     const search=document.getElementById('src-des').value,fNodo=document.getElementById('fsel-des-nodo').value,
       fEstado=document.getElementById('fsel-des-estado').value,fFuente=document.getElementById('fsel-des-fuente').value;
-    rows=doSort(filterRows(getDesRows(),search,fNodo,fEstado,fFuente),sortState.des.col,sortState.des.dir,desKeys);
+    rows=filterComp(doSort(filterRows(getDesRows(),search,fNodo,fEstado,fFuente),sortState.des.col,sortState.des.dir,desKeys),cm,'des');
     cols=[['N° Orden','orden'],['Cliente','cliente'],['Nodo','nodo'],['Fuente',r=>fuente(r.fuente)],['Estado','estado'],
       ['Subestado / Motivo','subestado'],['Región','region'],['Ítems',r=>r.items||1],['Volumen m³',r=>num(r.volumen)],
-      ['Peso kg',r=>num(r.peso)],['Fecha dato',r=>fmtD(r.dateStr)],['Editado a mano',r=>r._edited?'Sí':'']];
+      ['Peso kg',r=>num(r.peso)],['Fecha dato',r=>fmtD(r.dateStr)],['F. Compromiso',comp],['Editado a mano',r=>r._edited?'Sí':'']];
     name='despacho';
   }else{
     const search=document.getElementById('src-all').value,fNodo=document.getElementById('fsel-all-nodo').value,
       fEstado=document.getElementById('fsel-all-estado').value,fMod=document.getElementById('fsel-all-modulo').value;
-    rows=doSort(filterRows(getAllRows(),search,fNodo,fEstado,fMod),sortState.all.col,sortState.all.dir,allKeys);
+    rows=filterComp(doSort(filterRows(getAllRows(),search,fNodo,fEstado,fMod),sortState.all.col,sortState.all.dir,allKeys),cm,'all');
     cols=[['N° Orden','orden'],['Cliente','cliente'],['Nodo','nodo'],['Módulo',r=>TIPO_LBL[r.fuente]||r.fuente],['Estado','estado'],
-      ['Subestado','subestado'],['Región','region'],['Ítems',r=>r.items||1],['Volumen m³',r=>num(r.volumen)],
+      ['Subestado','subestado'],['Región','region'],['Ítems',r=>r.items||1],['Volumen m³',r=>num(r.volumen)],['F. Compromiso',comp],
       ['Peso kg',r=>num(r.peso)],['Fecha dato',r=>fmtD(r.dateStr)],['Editado a mano',r=>r._edited?'Sí':'']];
     name='detalle';
   }
