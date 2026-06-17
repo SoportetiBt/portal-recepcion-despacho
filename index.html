@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:ital,wght@1,800;1,900&display=swap" rel="stylesheet">
-<title>Portal Recepción y Despacho — Canon & Rosen</title>
+<title>Torre de Control — Recepción y Despacho · BigTicket</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <style>
@@ -215,15 +215,12 @@ table.files-table tr:last-child td{border-bottom:none}
 <header class="header">
   <div class="header-brand">
     <!-- Logo BigTicket tipográfico -->
-    <a href="#" style="text-decoration:none;display:flex;flex-direction:column;line-height:1">
-      <div style="display:flex;align-items:baseline;gap:0">
-        <span style="font-family:'Barlow Condensed','Arial Black',Impact,sans-serif;font-style:italic;font-weight:900;font-size:42px;color:#E8481A;letter-spacing:-1px;line-height:1">big</span><span style="font-family:'Barlow Condensed','Arial Black',Impact,sans-serif;font-style:italic;font-weight:900;font-size:42px;color:#1D1D1B;letter-spacing:-1px;line-height:1">ticket</span>
-      </div>
-      <div style="font-family:'Arial',sans-serif;font-weight:700;font-size:8.5px;letter-spacing:.22em;color:#1D1D1B;text-transform:uppercase;margin-top:1px;padding-left:2px">Logística y Transporte</div>
+    <a href="#" style="text-decoration:none;display:flex;align-items:center">
+      <img src="logo.png" alt="BigTicket — Logística y Transporte" style="height:60px;width:auto;display:block;max-width:none"><!--old-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" alt="BigTicket — Logística y Transporte" style="height:54px;width:auto;display:block;max-width:none"> -->
     </a>
-    <div class="header-divider" style="height:48px;margin:0 20px"></div>
+    <div class="header-divider" style="height:62px;margin:0 22px"></div>
     <div class="header-title">
-      <h1>Portal de Recepción y Despacho</h1>
+      <h1>Torre de Control — Recepción y Despacho</h1>
       <p>Canon (RM, V Región) · Rosen (V Región, IV Coquimbo)</p>
     </div>
   </div>
@@ -480,7 +477,7 @@ table.files-table tr:last-child td{border-bottom:none}
         </select>
         <select class="f-sel" id="fsel-des-fuente" onchange="renderDesTable()">
           <option value="">Ambas fuentes</option>
-          <option value="um">Último Metro</option>
+          <option value="um">Última Milla</option>
           <option value="rosen">Rosen</option>
         </select>
         <select class="f-sel" id="fsel-des-compdesde" onchange="renderDesTable()" title="Fecha de compromiso desde"><option value="">Compr. desde</option></select>
@@ -604,7 +601,7 @@ table.files-table tr:last-child td{border-bottom:none}
         <input type="file" accept=".xlsx,.xls" onchange="onFile(event,'um',document.getElementById('dz-um'))">
         <span class="dz-type-badge b-tipo-um">Canon — UM</span>
         <div class="dz-icon">📦</div>
-        <div class="dz-title">Último Metro Canon</div>
+        <div class="dz-title">Última Milla Canon</div>
         <div class="dz-desc">Despacho última milla Canon</div>
         <div class="dz-status" id="dst-um">✓ Cargado</div>
         <div class="dz-status-pending">Sheet: DispatchTrack</div>
@@ -820,7 +817,7 @@ async function saveSnapshot(data,updatedAt){
 }
 
 const NODES=['C_RM','C_VIÑA','R_VIÑA','R_SERENA'];
-const TIPO_LBL={troncal:'Troncal Canon',um:'Último Metro Canon',rosen:'Rosen Preliq.',manual:'✎ Cambio manual'};
+const TIPO_LBL={troncal:'Troncal Canon',um:'Última Milla Canon',rosen:'Rosen Preliq.',manual:'✎ Cambio manual'};
 const TIPO_CSS={troncal:'b-tipo-troncal',um:'b-tipo-um',rosen:'b-tipo-rosen',manual:'b-dev'};
 const ESTADO_CSS={'Entregado':'b-ent','No entregado':'b-no','Entrega parcial':'b-par','Bodega RM':'b-bod','Ingresado al sistema':'b-pen','Devuelto al mandante':'b-dev','Extraviado':'b-ext'};
 // Estados "terminales" que un admin puede fijar a mano (#15/#17). Sacan la orden de "en stock".
@@ -1593,7 +1590,7 @@ const allKeys=['orden','cliente','nodo','fuente','estado','subestado','region','
 function badge(text,cls){return`<span class="badge ${cls||''}">${text||'—'}</span>`}
 function estBadge(e){return badge(e,ESTADO_CSS[e]||'b-pen')}
 function nodoBadge(n){return badge(n,NODO_CSS[n]||'')}
-function fuente(f){return{troncal:'Troncal',um:'Último Metro',rosen:'Rosen',manual:'✎ Manual'}[f]||f}
+function fuente(f){return{troncal:'Troncal',um:'Última Milla',rosen:'Rosen',manual:'✎ Manual'}[f]||f}
 
 function filterRows(rows,search,nodo,estado,fuente2){
   // Soporta PEGAR varios códigos: se parte por espacios/coma/punto y coma/saltos y matchea CUALQUIERA (OR).
