@@ -387,7 +387,7 @@ table.files-table tr:last-child td{border-bottom:none}
             style="padding:6px 14px;font-size:12px;font-weight:700;border:none;cursor:pointer;background:#fff;color:#6c757d">Totalizado</button>
         </div>
         <span class="row-count-lbl" id="count-rec">0 registros</span>
-        <input class="search-input" id="src-rec" placeholder="🔍 Buscar orden o cliente..." oninput="renderRecTable()" style="width:180px">
+        <input class="search-input" id="src-rec" placeholder="🔍 Buscar / pegar varios códigos..." oninput="renderRecTable()" onpaste="onPasteCodes(event,this)" style="width:180px">
         <select class="f-sel" id="fsel-rec-nodo" onchange="renderRecTable()">
           <option value="">Todos los nodos</option>
           <option value="C_RM">C_RM</option><option value="C_VIÑA">C_VIÑA</option>
@@ -463,7 +463,7 @@ table.files-table tr:last-child td{border-bottom:none}
       <div><div class="panel-title">Detalle de órdenes — Despacho</div></div>
       <div class="panel-actions">
         <span class="row-count-lbl" id="count-des">0 registros</span>
-        <input class="search-input" id="src-des" placeholder="🔍 Buscar orden o cliente..." oninput="renderDesTable()">
+        <input class="search-input" id="src-des" placeholder="🔍 Buscar / pegar varios códigos..." oninput="renderDesTable()" onpaste="onPasteCodes(event,this)">
         <select class="f-sel" id="fsel-des-nodo" onchange="renderDesTable()">
           <option value="">Todos los nodos</option>
           <option value="C_RM">C_RM</option><option value="C_VIÑA">C_VIÑA</option>
@@ -513,7 +513,7 @@ table.files-table tr:last-child td{border-bottom:none}
       <div><div class="panel-title">Todas las Órdenes</div><div class="panel-subtitle">Recepción + Despacho — órdenes únicas por N° de orden</div></div>
       <div class="panel-actions">
         <span class="row-count-lbl" id="count-all">0 registros</span>
-        <input class="search-input" id="src-all" placeholder="🔍 Buscar orden, cliente..." oninput="renderAllTable()">
+        <input class="search-input" id="src-all" placeholder="🔍 Buscar / pegar varios códigos..." oninput="renderAllTable()" onpaste="onPasteCodes(event,this)">
         <select class="f-sel" id="fsel-all-nodo" onchange="renderAllTable()">
           <option value="">Todos los nodos</option>
           <option value="C_RM">C_RM</option><option value="C_VIÑA">C_VIÑA</option>
@@ -1552,15 +1552,30 @@ function nodoBadge(n){return badge(n,NODO_CSS[n]||'')}
 function fuente(f){return{troncal:'Troncal',um:'Último Metro',rosen:'Rosen',manual:'✎ Manual'}[f]||f}
 
 function filterRows(rows,search,nodo,estado,fuente2){
-  const q=(search||'').toLowerCase();
+  // Soporta PEGAR varios códigos: se parte por espacios/coma/punto y coma/saltos y matchea CUALQUIERA (OR).
+  const toks=(search||'').toLowerCase().split(/[\s,;]+/).filter(Boolean);
   return rows.filter(r=>{
     if(!matchGF(r))return false;
     if(nodo&&r.nodo!==nodo)return false;
     if(estado&&r.estado!==estado)return false;
     if(fuente2&&r.fuente!==fuente2)return false;
-    if(q&&!r.orden.toLowerCase().includes(q)&&!r.cliente.toLowerCase().includes(q)&&!r.region.toLowerCase().includes(q))return false;
+    if(toks.length){
+      const o=(r.orden||'').toLowerCase(),c=(r.cliente||'').toLowerCase(),g=(r.region||'').toLowerCase();
+      if(!toks.some(t=>o.includes(t)||c.includes(t)||g.includes(t)))return false;
+    }
     return true;
   });
+}
+// Al pegar una columna/fila de Excel (saltos de línea o tabs), los convierte en códigos separados por espacio.
+function onPasteCodes(e,el){
+  const txt=((e.clipboardData||window.clipboardData)||{}).getData?((e.clipboardData||window.clipboardData).getData('text')):'';
+  if(txt&&/[\n\r\t]/.test(txt)){
+    e.preventDefault();
+    const cleaned=txt.split(/[\n\r\t,;]+/).map(s=>s.trim()).filter(Boolean).join(' ');
+    const st=el.selectionStart||0,en=el.selectionEnd||0,v=el.value;
+    el.value=v.slice(0,st)+cleaned+v.slice(en);
+    el.dispatchEvent(new Event('input'));
+  }
 }
 function doSort(rows,col,dir,keys){
   if(col<0)return rows;
