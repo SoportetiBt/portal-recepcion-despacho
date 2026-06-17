@@ -657,7 +657,7 @@ table.files-table tr:last-child td{border-bottom:none}
 </div>
 
 <!-- ESTADO EDIT DIALOG (#15/#17) -->
-<div class="overlay" id="dlg-estado">
+<div class="overlay" id="dlg-estado" style="z-index:300">
   <div class="dialog">
     <h3>Cambiar estado de la orden</h3>
     <p id="dlg-estado-msg"></p>
@@ -681,6 +681,17 @@ table.files-table tr:last-child td{border-bottom:none}
       <button class="btn btn-outline" onclick="closeDlg('dlg-day')">Cancelar</button>
       <button class="btn btn-danger" onclick="deleteByDay()">Eliminar día</button>
     </div>
+  </div>
+</div>
+
+<!-- ORDEN DETALLE (modal) — se abre al clic en un N° de orden, sin perder los filtros -->
+<div class="overlay" id="dlg-orden">
+  <div class="dialog" style="min-width:min(920px,92vw);max-width:920px;max-height:82vh;overflow:auto">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;gap:12px">
+      <h3 id="dlg-orden-title" style="margin:0">Orden</h3>
+      <button class="btn btn-outline btn-sm" onclick="closeDlg('dlg-orden')">Cerrar ✕</button>
+    </div>
+    <div id="dlg-orden-body"></div>
   </div>
 </div>
 
@@ -784,8 +795,8 @@ async function saveSnapshot(data,updatedAt){
 }
 
 const NODES=['C_RM','C_VIÑA','R_VIÑA','R_SERENA'];
-const TIPO_LBL={troncal:'Troncal Canon',um:'Último Metro Canon',rosen:'Rosen Preliq.'};
-const TIPO_CSS={troncal:'b-tipo-troncal',um:'b-tipo-um',rosen:'b-tipo-rosen'};
+const TIPO_LBL={troncal:'Troncal Canon',um:'Último Metro Canon',rosen:'Rosen Preliq.',manual:'✎ Cambio manual'};
+const TIPO_CSS={troncal:'b-tipo-troncal',um:'b-tipo-um',rosen:'b-tipo-rosen',manual:'b-dev'};
 const ESTADO_CSS={'Entregado':'b-ent','No entregado':'b-no','Entrega parcial':'b-par','Bodega RM':'b-bod','Ingresado al sistema':'b-pen','Devuelto al mandante':'b-dev','Extraviado':'b-ext'};
 // Estados "terminales" que un admin puede fijar a mano (#15/#17). Sacan la orden de "en stock".
 const ESTADOS_EDITABLES=['Entregado','No entregado','Entrega parcial','Devuelto al mandante','Extraviado'];
@@ -943,12 +954,14 @@ function fmtDateCell(v){
   return'';
 }
 
+// Fecha de HOY en horario LOCAL (no UTC), para que no se adelante un día por zona horaria.
+function todayLocal(){const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
 function exDate(name){
   let m=name.match(/(\d{2})[.\-_](\d{2})[.\-_](\d{4})/);   // DD.MM.AAAA
   if(m)return`${m[3]}-${m[2]}-${m[1]}`;
   m=name.match(/(\d{4})[.\-_](\d{2})[.\-_](\d{2})/);        // AAAA-MM-DD (ej. archivos Rosen)
   if(m)return`${m[1]}-${m[2]}-${m[3]}`;
-  return new Date().toISOString().slice(0,10);
+  return todayLocal();
 }
 function ncNode(r){const v=cs(r).toLowerCase();return(v.includes('valpara')||v.includes('viña')||v.includes('vina'))?'C_VIÑA':'C_RM'}
 function nrNode(g,r){const v=cs(r).toLowerCase()+cs(g).toLowerCase();return(v.includes('coquimbo')||v.includes('serena'))?'R_SERENA':'R_VIÑA'}
@@ -968,11 +981,13 @@ function estadoRank(e){return{'Entregado':5,'Entrega parcial':4,'No entregado':3
 function esMasReciente(a,b){ // ¿a es más reciente/avanzado que b?
   const da=a.dateStr||'',db=b.dateStr||'';
   if(da!==db)return da>db;
+  if(!!a._manual!==!!b._manual)return !!a._manual; // un cambio manual gana el empate de fecha
   return estadoRank(a.estado)>=estadoRank(b.estado);
 }
 function linesOf(r){return r._lines||[r];}   // #21: líneas que componen la orden
 function mergeKeepLatest(x,r){
-  const vol=x.volumen+r.volumen,peso=x.peso+r.peso,items=x.items+(r.items||1);
+  // los movimientos manuales (✎) NO aportan volumen/peso/ítems (solo cambian el estado)
+  const vol=x.volumen+(r._manual?0:r.volumen),peso=x.peso+(r._manual?0:r.peso),items=x.items+(r._manual?0:(r.items||1));
   const base=esMasReciente(r,x)?{...r}:{...x};   // datos del movimiento más reciente
   base.volumen=vol;base.peso=peso;base.items=items;
   base._lines=linesOf(x).concat(linesOf(r));   // #21: junta el detalle por línea para el drill-down
@@ -982,7 +997,7 @@ function dedup(rows){
   const m=new Map();
   rows.forEach(r=>{
     if(m.has(r.orden))m.set(r.orden,mergeKeepLatest(m.get(r.orden),r));
-    else m.set(r.orden,{...r,items:(r.items||1),_lines:linesOf(r)});
+    else m.set(r.orden,{...r,items:(r._manual?0:(r.items||1)),_lines:linesOf(r)});
   });
   return[...m.values()];
 }
@@ -993,7 +1008,7 @@ function dedupByDay(rows){
   rows.forEach(r=>{
     const k=r.orden+'||'+r.dateStr;
     if(m.has(k))m.set(k,mergeKeepLatest(m.get(k),r));
-    else m.set(k,{...r,items:(r.items||1),_lines:linesOf(r)});
+    else m.set(k,{...r,items:(r._manual?0:(r.items||1)),_lines:linesOf(r)});
   });
   return[...m.values()];
 }
@@ -1130,43 +1145,37 @@ function processFile(file,type,el){
 // GET DATA
 // ════════════════════════════════════════════
 function getRows(type){return load().files.filter(f=>f.type===type).flatMap(f=>f.rows);}
-// #15: correcciones manuales de estado por orden. Viven en MEM_STORE.overrides, separadas de los
-// archivos, así SOBREVIVEN a re-subir el archivo (regla confirmada). Se aplican al leer.
-function getOverrides(){const s=load();return s.overrides||{};}
-function applyOv(rows){
-  const ov=getOverrides();
-  return rows.map(r=>{
-    const o=ov[r.orden];
-    return(o&&o.estado)?{...r,estado:o.estado,_edited:true,_editBy:o.by,_editAt:o.at}:r;
-  });
+// #15 v2: las correcciones manuales de estado se guardan como MOVIMIENTOS (no pisan la orden).
+// Cada cambio agrega una línea con la fecha de hoy y el nuevo estado → conserva la trazabilidad y,
+// por "el último estado manda" (#18), pasa a ser el estado vigente. Viven en MEM_STORE.manualMoves,
+// separadas de los archivos, así SOBREVIVEN a re-subir el archivo.
+function manualMoves(){return load().manualMoves||[];}
+function manualMoveRows(){
+  return manualMoves().map(m=>({
+    orden:m.orden,cliente:m.cliente||'',nodo:m.nodo||'',fuente:'manual',
+    estado:m.estado,subestado:'✎ Cambio manual'+(m.by?(' · '+m.by):''),
+    region:m.region||'',volumen:0,peso:0,items:0,codItem:'',descItem:'',ped:0,ent:0,
+    dateStr:m.dateStr,_manual:true,_edited:true,_editBy:m.by
+  }));
 }
 function getRecRows(){return dedup(getRows('troncal')).filter(r=>r.estado==='Ingresado al sistema');}
-function getDesRows(){return applyOv(dedupDes([...getRows('um'),...getRows('rosen')]));}
-// Para el STOCK usamos SIEMPRE órdenes únicas (último estado), sin importar el switch beta/ruta.
-// El beta (salidas a ruta por día) es solo para el nivel de servicio de última milla, no para el stock.
-function getDesRowsUnique(){return applyOv(dedup([...getRows('um'),...getRows('rosen')]));}
+function getDesRows(){return dedupDes([...getRows('um'),...getRows('rosen'),...manualMoveRows()]);}
+// Para el STOCK usamos SIEMPRE órdenes únicas (último estado), sin importar la vista de última milla.
+function getDesRowsUnique(){return dedup([...getRows('um'),...getRows('rosen'),...manualMoveRows()]);}
 function getAllRows(){
   const rec=dedup(getRows('troncal'));
-  const des=dedupDes([...getRows('um'),...getRows('rosen')]);
-  return applyOv([...rec,...des]);
+  const des=dedupDes([...getRows('um'),...getRows('rosen'),...manualMoveRows()]);
+  return[...rec,...des];
 }
 function getStockSets(){
-  const ov=getOverrides();
-  const cerrada=o=>ov[o]&&ESTADOS_CIERRE.includes(ov[o].estado); // resuelta a mano (Devuelto/Extraviado/Entregado…) → fuera de stock
   const recOrders=new Set(getRecRows().map(r=>r.orden));
-  // Último estado de despacho por orden, SIEMPRE en único (no depende del switch beta/ruta).
+  // Último estado por orden (incluye los movimientos manuales), siempre en único.
   const desEstado={};getDesRowsUnique().forEach(r=>{desEstado[r.orden]=r.estado;});
   const desOrders=new Set(Object.keys(desEstado));
-  // #18 EN STOCK = recibidas no cerradas a mano que: nunca tuvieron despacho, O su último estado
-  // es exactamente "No entregado" (volvió a bodega). "Pendiente"/en proceso y Entregado/Parcial NO son stock.
-  const enStock=new Set([...recOrders].filter(o=>{
-    if(cerrada(o))return false;
-    const e=desEstado[o];
-    if(e===undefined)return true;       // nunca despachada → stock
-    return e==='No entregado';          // volvió → stock; resto (Pendiente, Entregado, Parcial…) → no
-  }));
-  // En Despacho = recibidas con registro de despacho que NO volvieron como No entregado.
-  const enDespacho=new Set([...recOrders].filter(o=>desOrders.has(o)&&desEstado[o]!=='No entregado'&&!enStock.has(o)));
+  // EN STOCK = recibidas cuyo último estado es "nunca despachada" o "No entregado" (volvió a bodega).
+  // Entregado / Parcial / Devuelto / Extraviado / Pendiente NO son stock.
+  const enStock=new Set([...recOrders].filter(o=>{const e=desEstado[o];return e===undefined||e==='No entregado';}));
+  const enDespacho=new Set([...recOrders].filter(o=>desOrders.has(o)&&!enStock.has(o)));
   return{recOrders,desOrders,enDespacho,enStock};
 }
 
@@ -1518,7 +1527,7 @@ const allKeys=['orden','cliente','nodo','fuente','estado','subestado','region','
 function badge(text,cls){return`<span class="badge ${cls||''}">${text||'—'}</span>`}
 function estBadge(e){return badge(e,ESTADO_CSS[e]||'b-pen')}
 function nodoBadge(n){return badge(n,NODO_CSS[n]||'')}
-function fuente(f){return{troncal:'Troncal',um:'Último Metro',rosen:'Rosen'}[f]||f}
+function fuente(f){return{troncal:'Troncal',um:'Último Metro',rosen:'Rosen',manual:'✎ Manual'}[f]||f}
 
 function filterRows(rows,search,nodo,estado,fuente2){
   const q=(search||'').toLowerCase();
@@ -1656,16 +1665,34 @@ function toggleRow(id,btn){
   const open=row.classList.toggle('open');
   if(btn)btn.textContent=open?'▾':'▸';
 }
-// #20: clic en el N° de orden (en Recepción/Despacho) → salta a Detalle Órdenes filtrado por esa
-// orden, mostrando TODOS sus movimientos (limpia los filtros para no ocultar ninguno).
+// #20: clic en el N° de orden → abre una VENTANA (modal) con todos los movimientos de esa orden,
+// SIN tocar la vista actual ni sus filtros. Al cerrar, seguís donde estabas.
 function openOrder(orden){
-  clearFilters();
-  const tabEl=document.querySelector('.tab[onclick*="detalle"]');
-  showTab('detalle',tabEl);
-  ['fsel-all-nodo','fsel-all-modulo','fsel-all-estado'].forEach(id=>{const e=document.getElementById(id);if(e)e.value='';});
-  const s=document.getElementById('src-all');if(s)s.value=orden;
-  renderAllTable();
-  toast('Mostrando todos los movimientos de la orden '+orden);
+  const rows=getAllRows().filter(r=>r.orden===orden).sort((a,b)=>(a.dateStr||'').localeCompare(b.dateStr||''));
+  const head=rows.length?rows[rows.length-1]:{};   // último movimiento = estado vigente
+  let body;
+  if(!rows.length){
+    body='<div style="color:#adb5bd;padding:8px 0">Sin movimientos para esta orden con los datos cargados.</div>';
+  }else{
+    body=`<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px">
+      <div style="font-size:12.5px;color:#6c757d">Cliente: <b>${head.cliente||'—'}</b> · Nodo: ${nodoBadge(head.nodo)} · Estado vigente: ${estBadge(head.estado)} · ${rows.length} movimiento(s)</div>
+      ${isAuthValid()?`<button class="btn btn-orange btn-sm" onclick="openEstadoEditor('${orden}','${head.estado||''}')">✎ Cambiar estado</button>`:''}
+    </div>
+    <table class="orders-table"><thead><tr><th></th><th>Módulo</th><th>Estado</th><th>Fecha</th><th style="text-align:right">Ítems</th><th style="text-align:right">Vol m³</th><th>Motivo</th></tr></thead><tbody>`
+    +rows.map((r,i)=>{const lid='odl-'+i;return `<tr>
+        <td><span onclick="toggleRow('${lid}',this)" title="Ver líneas" style="cursor:pointer;color:#E8481A;font-weight:700;user-select:none">▸</span></td>
+        <td>${badge(TIPO_LBL[r.fuente]||r.fuente,TIPO_CSS[r.fuente])}</td>
+        <td>${estBadge(r.estado)}${editedMark(r)}</td>
+        <td><span class="fecha-chip">${fmtD(r.dateStr)}</span></td>
+        <td style="text-align:right">${r.items||0}</td>
+        <td style="text-align:right">${r.volumen>0?fmtNum(r.volumen,2):'—'}</td>
+        <td style="color:#6c757d">${r.subestado||'—'}</td></tr>
+        <tr id="${lid}" class="node-detail-row"><td colspan="7"><div class="node-detail-inner">${lineDetailHTML(r)}</div></td></tr>`;}).join('')
+    +'</tbody></table>';
+  }
+  document.getElementById('dlg-orden-title').textContent='Orden '+orden;
+  document.getElementById('dlg-orden-body').innerHTML=body;
+  document.getElementById('dlg-orden').classList.add('show');
 }
 
 function srt(tbl,col){
@@ -1735,7 +1762,7 @@ function exportJSON(){
   const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});
   const a=document.createElement('a');
   a.href=URL.createObjectURL(blob);
-  a.download='recepcion_despacho_'+new Date().toISOString().slice(0,10)+'.json';
+  a.download='recepcion_despacho_'+todayLocal()+'.json';
   a.click();URL.revokeObjectURL(a.href);
   toast('JSON exportado');
 }
@@ -1775,7 +1802,7 @@ function exportExcel(which){
   const ws=XLSX.utils.aoa_to_sheet(aoa);
   const wb=XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb,ws,'Datos');
-  XLSX.writeFile(wb,`${name}_${new Date().toISOString().slice(0,10)}.xlsx`);
+  XLSX.writeFile(wb,`${name}_${todayLocal()}.xlsx`);
   toast(`✓ ${fmtNum(rows.length)} filas exportadas a Excel`);
 }
 
@@ -1784,26 +1811,34 @@ let editingOrden=null;
 function openEstadoEditor(orden,estadoActual){
   if(!isAuthValid()){toast('🔒 Iniciá sesión para corregir estados','err');return;}
   editingOrden=orden;
-  document.getElementById('dlg-estado-msg').innerHTML=`Orden <b>${orden}</b> — estado actual: <b>${estadoActual||'—'}</b>`;
+  document.getElementById('dlg-estado-msg').innerHTML=`Orden <b>${orden}</b> — estado actual: <b>${estadoActual||'—'}</b>.<br>Se agregará un <b>movimiento con la fecha de hoy</b> y el nuevo estado (se conserva el historial).`;
   document.getElementById('estado-sel').innerHTML=ESTADOS_EDITABLES
     .map(e=>`<option value="${e}"${e===estadoActual?' selected':''}>${e}</option>`).join('');
-  document.getElementById('estado-clear').style.display=getOverrides()[orden]?'inline-flex':'none';
+  const tiene=manualMoves().some(m=>m.orden===orden);
+  const clr=document.getElementById('estado-clear');clr.style.display=tiene?'inline-flex':'none';clr.textContent='Quitar cambios manuales';
   document.getElementById('dlg-estado').classList.add('show');
 }
-function saveEstadoOverride(){
+function saveEstadoOverride(){   // (nombre conservado por el botón; ahora agrega un movimiento)
   if(!editingOrden)return;
   if(!isAuthValid()){toast('🔒 Tu sesión venció — iniciá sesión de nuevo','err');return;}
   const estado=document.getElementById('estado-sel').value;
-  const s=load();if(!s.overrides)s.overrides={};
-  s.overrides[editingOrden]={estado,by:currentUser(),at:new Date().toISOString()};
+  const s=load();if(!Array.isArray(s.manualMoves))s.manualMoves=[];
+  const ctx=getAllRows().find(r=>r.orden===editingOrden&&!r._manual)||{};
+  const today=todayLocal();
+  s.manualMoves.push({orden:editingOrden,estado,dateStr:today,by:currentUser(),at:new Date().toISOString(),
+    nodo:ctx.nodo||'',cliente:ctx.cliente||'',region:ctx.region||'',fuente:ctx.fuente||'um'});
+  const ord=editingOrden;
   save(s);closeDlg('dlg-estado');editingOrden=null;rebuildAll();
-  toast('✓ Estado corregido a "'+estado+'" — se mantiene aunque re-subas el archivo');
+  if(document.getElementById('dlg-orden').classList.contains('show'))openOrder(ord); // refresca la ventanita
+  toast('✓ Movimiento agregado: "'+estado+'" con fecha de hoy. Se conserva el historial.');
 }
-function clearEstadoOverride(){
+function clearEstadoOverride(){   // quita TODOS los movimientos manuales de la orden
   if(!editingOrden)return;
-  const s=load();if(s.overrides)delete s.overrides[editingOrden];
+  const s=load();if(Array.isArray(s.manualMoves))s.manualMoves=s.manualMoves.filter(m=>m.orden!==editingOrden);
+  const ord=editingOrden;
   save(s);closeDlg('dlg-estado');editingOrden=null;rebuildAll();
-  toast('Corrección quitada — la orden vuelve al estado del archivo');
+  if(document.getElementById('dlg-orden').classList.contains('show'))openOrder(ord); // refresca la ventanita
+  toast('Cambios manuales de la orden quitados — vuelve al estado del archivo');
 }
 
 function rebuildAll(){
