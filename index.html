@@ -534,6 +534,8 @@ table.files-table tr:last-child td{border-bottom:none}
           <option value="Devuelto al mandante">Devuelto al mandante</option>
           <option value="Extraviado">Extraviado</option>
         </select>
+        <select class="f-sel" id="fsel-all-compdesde" onchange="renderAllTable()" title="Fecha de compromiso desde"><option value="">Compr. desde</option></select>
+        <select class="f-sel" id="fsel-all-comphasta" onchange="renderAllTable()" title="Fecha de compromiso hasta"><option value="">Compr. hasta</option></select>
         <button class="btn btn-outline btn-sm" onclick="exportExcel('all')" title="Baja a Excel exactamente lo que está filtrado">⬇ Excel</button>
         <label style="font-size:12px;display:inline-flex;align-items:center;gap:5px;cursor:pointer" title="Tildar / destildar todas las visibles"><input type="checkbox" id="chk-all" onclick="toggleAllSel(this)"> Todas</label>
         <button id="btn-bulk" class="btn btn-orange btn-sm" style="display:none" onclick="openBulkEditor()">✎ Estado (<span id="bulk-n">0</span>)</button>
@@ -1209,6 +1211,12 @@ function getStockSets(){
   const enStockVencido=new Set([...enStockTotal].filter(o=>comp[o]&&comp[o]<hoy));
   return{recOrders,desOrders,enDespacho,enStock,enStockUM,enStockVencido};
 }
+// Mapa orden → fecha de COMPROMISO (ISO), desde troncal/rosen (deadline = compromiso máx, fallback mín).
+function getCompromisoMap(){
+  const m={};
+  [...getRows('troncal'),...getRows('rosen')].forEach(r=>{const c=dmyToIso(r.fechaMax)||dmyToIso(r.fechaMin);if(c&&!m[r.orden])m[r.orden]=c;});
+  return m;
+}
 
 // ════════════════════════════════════════════
 // GLOBAL FILTERS
@@ -1275,6 +1283,15 @@ function updateFechaOptions(){
     const cur=sel.value;
     sel.innerHTML=`<option value="">${lbl}</option>`+fdates.map(d=>`<option value="${d}"${d===cur?' selected':''}>${fmtD(d)}</option>`).join('');
     if(!fdates.includes(cur))sel.value='';
+  });
+}
+// Puebla los selectores de fecha de COMPROMISO del Detalle (desde/hasta), preservando lo elegido.
+function updateCompromisoOptions(){
+  const cdates=[...new Set(Object.values(getCompromisoMap()))].filter(Boolean).sort().reverse();
+  [['fsel-all-compdesde','Compr. desde'],['fsel-all-comphasta','Compr. hasta']].forEach(([id,lbl])=>{
+    const sel=document.getElementById(id);if(!sel)return;const cur=sel.value;
+    sel.innerHTML=`<option value="">${lbl}</option>`+cdates.map(d=>`<option value="${d}"${d===cur?' selected':''}>${fmtD(d)}</option>`).join('');
+    if(!cdates.includes(cur))sel.value='';
   });
 }
 
@@ -1667,16 +1684,25 @@ function renderAllTable(){
   const fNodo=document.getElementById('fsel-all-nodo').value;
   const fEstado=document.getElementById('fsel-all-estado').value;
   const fMod=document.getElementById('fsel-all-modulo').value;
+  const fCompD=fval('fsel-all-compdesde'),fCompH=fval('fsel-all-comphasta');
   if(!total){cnt.textContent='0 registros';tbody.innerHTML=`<tr class="empty-row-msg"><td colspan="12"><span>📂</span>Cargá archivos para ver el detalle de órdenes</td></tr>`;return;}
-  const hasFilter=!!(search||fNodo||fEstado||fMod)||gfActive();
+  const hasFilter=!!(search||fNodo||fEstado||fMod||fCompD||fCompH)||gfActive();
   // #7: no renderizar las miles de órdenes por defecto; recién al filtrar/buscar.
   if(!hasFilter){
     cnt.textContent=fmtNum(total)+' en total';
     tbody.innerHTML=`<tr class="empty-row-msg"><td colspan="12"><span>🔎</span>Aplicá un filtro o buscá arriba para ver las órdenes (${fmtNum(total)} en total)</td></tr>`;
     return;
   }
-  const rows=doSort(filterRows(getAllRows(),search,fNodo,fEstado,fMod),sortState.all.col,sortState.all.dir,allKeys);
-  if(!rows.length){cnt.textContent='0 registros';tbody.innerHTML=`<tr class="empty-row-msg"><td colspan="12"><span>🔍</span>Sin coincidencias</td></tr>`;return;}
+  let rows=doSort(filterRows(getAllRows(),search,fNodo,fEstado,fMod),sortState.all.col,sortState.all.dir,allKeys);
+  // Filtro por fecha de COMPROMISO (una sola = día exacto; ambas = rango), por orden.
+  if(fCompD||fCompH){
+    const cm=getCompromisoMap();
+    rows=rows.filter(r=>{const c=cm[r.orden]||'';if(!c)return false;
+      if(fCompD&&fCompH)return c>=fCompD&&c<=fCompH;
+      if(fCompD)return c===fCompD;
+      return c===fCompH;});
+  }
+  if(!rows.length){cnt.textContent='0 registros';tbody.innerHTML=`<tr class="empty-row-msg"><td colspan="12"><span>🔍</span>Sin coincidencias (probá ajustar el filtro de compromiso)</td></tr>`;return;}
   const shown=rows.slice(0,ALL_CAP);
   cnt.textContent=rows.length>ALL_CAP?`${fmtNum(ALL_CAP)} de ${fmtNum(rows.length)}`:fmtNum(rows.length)+' registros';
   const puedeEditar=isAuthValid();
@@ -1938,6 +1964,7 @@ function rebuildAll(){
   renderFilesTable();
   updateHeaderInfo();
   updateFechaOptions();
+  updateCompromisoOptions();
 }
 
 // ════════════════════════════════════════════
