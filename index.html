@@ -301,6 +301,7 @@ table.files-table tr:last-child td{border-bottom:none}
       <option value="">Todas</option>
       <option value="stock">Pendiente recepción (nunca salió)</option>
       <option value="um">Pendiente última milla (volvió)</option>
+      <option value="vencido">⚠ Stock fuera de fecha (compromiso vencido)</option>
       <option value="despachado">Con movimiento (ya salió)</option>
     </select>
   </div>
@@ -825,6 +826,7 @@ const gf={anio:'',mes:'',fechaDesde:'',fechaHasta:'',operacion:'',nodo:'',estado
 const MESES=['','Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
 let GF_STOCK_SET=null; // stock pendiente de RECEPCIÓN (nunca salió), recalculado en rebuildAll
 let GF_STOCK_UM=null;  // pendiente de ÚLTIMA MILLA (No entregado que volvió)
+let GF_STOCK_VENC=null; // stock con fecha de COMPROMISO vencida
 const charts={};
 
 // ════════════════════════════════════════════
@@ -973,6 +975,8 @@ function fmtDateCell(v){
 
 // Fecha de HOY en horario LOCAL (no UTC), para que no se adelante un día por zona horaria.
 function todayLocal(){const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
+// "DD/MM/AAAA" → "AAAA-MM-DD" (para comparar fechas de compromiso). '' si no parsea.
+function dmyToIso(s){const m=String(s||'').match(/(\d{2})\/(\d{2})\/(\d{4})/);return m?`${m[3]}-${m[2]}-${m[1]}`:'';}
 function exDate(name){
   let m=name.match(/(\d{2})[.\-_](\d{2})[.\-_](\d{4})/);   // DD.MM.AAAA
   if(m)return`${m[3]}-${m[2]}-${m[1]}`;
@@ -1185,7 +1189,8 @@ function getAllRows(){
   return[...rec,...des];
 }
 function getStockSets(){
-  const recOrders=new Set(getRecRows().map(r=>r.orden));
+  const recRows=getRecRows();
+  const recOrders=new Set(recRows.map(r=>r.orden));
   // Último estado por orden (incluye los movimientos manuales), siempre en único.
   const desEstado={};getDesRowsUnique().forEach(r=>{desEstado[r.orden]=r.estado;});
   const desOrders=new Set(Object.keys(desEstado));
@@ -1196,7 +1201,13 @@ function getStockSets(){
   const enStockUM=new Set([...recOrders].filter(o=>desEstado[o]==='No entregado'));
   // En despacho = recibidas que tuvieron algún movimiento de despacho (Recibidas = enStock + enDespacho).
   const enDespacho=new Set([...recOrders].filter(o=>desOrders.has(o)));
-  return{recOrders,desOrders,enDespacho,enStock,enStockUM};
+  // STOCK FUERA DE FECHA = lo que está en stock (recepción + última milla) cuya fecha de COMPROMISO ya pasó.
+  // Deadline = fecha compromiso máx (fallback mín). El stock con compromiso de hoy o futuro NO es vencido.
+  const hoy=todayLocal();
+  const comp={};recRows.forEach(r=>{const c=dmyToIso(r.fechaMax)||dmyToIso(r.fechaMin);if(c&&!comp[r.orden])comp[r.orden]=c;});
+  const enStockTotal=new Set([...enStock,...enStockUM]);
+  const enStockVencido=new Set([...enStockTotal].filter(o=>comp[o]&&comp[o]<hoy));
+  return{recOrders,desOrders,enDespacho,enStock,enStockUM,enStockVencido};
 }
 
 // ════════════════════════════════════════════
@@ -1235,8 +1246,10 @@ function matchGF(r){
   if(gf.stock){
     const enRec=GF_STOCK_SET&&GF_STOCK_SET.has(r.orden);
     const enUM=GF_STOCK_UM&&GF_STOCK_UM.has(r.orden);
+    const venc=GF_STOCK_VENC&&GF_STOCK_VENC.has(r.orden);
     if(gf.stock==='stock'&&!enRec)return false;        // pendiente de recepción (nunca salió)
     if(gf.stock==='um'&&!enUM)return false;             // pendiente de última milla (No entregado, volvió)
+    if(gf.stock==='vencido'&&!venc)return false;        // stock con compromiso vencido (fuera de fecha)
     if(gf.stock==='despachado'&&enRec)return false;     // que ya tuvo movimiento
   }
   return true;
@@ -1913,7 +1926,7 @@ function clearEstadoOverride(){   // quita TODOS los movimientos manuales de la 
 }
 
 function rebuildAll(){
-  {const _ss=getStockSets();GF_STOCK_SET=_ss.enStock;GF_STOCK_UM=_ss.enStockUM;}   // refresca sets de stock para el filtro global
+  {const _ss=getStockSets();GF_STOCK_SET=_ss.enStock;GF_STOCK_UM=_ss.enStockUM;GF_STOCK_VENC=_ss.enStockVencido;}   // refresca sets de stock para el filtro global
   const recRows=getRecRows(),desRows=getDesRows();
   renderSummaryCards();
   renderRecNodesTable(recRows);
