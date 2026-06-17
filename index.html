@@ -533,6 +533,8 @@ table.files-table tr:last-child td{border-bottom:none}
           <option value="Extraviado">Extraviado</option>
         </select>
         <button class="btn btn-outline btn-sm" onclick="exportExcel('all')" title="Baja a Excel exactamente lo que está filtrado">⬇ Excel</button>
+        <label style="font-size:12px;display:inline-flex;align-items:center;gap:5px;cursor:pointer" title="Tildar / destildar todas las visibles"><input type="checkbox" id="chk-all" onclick="toggleAllSel(this)"> Todas</label>
+        <button id="btn-bulk" class="btn btn-orange btn-sm" style="display:none" onclick="openBulkEditor()">✎ Estado (<span id="bulk-n">0</span>)</button>
       </div>
     </div>
     <div class="table-scroll">
@@ -692,6 +694,19 @@ table.files-table tr:last-child td{border-bottom:none}
       <button class="btn btn-outline btn-sm" onclick="closeDlg('dlg-orden')">Cerrar ✕</button>
     </div>
     <div id="dlg-orden-body"></div>
+  </div>
+</div>
+
+<!-- CAMBIO DE ESTADO MASIVO (modal de confirmación) -->
+<div class="overlay" id="dlg-bulk" style="z-index:300">
+  <div class="dialog">
+    <h3>Cambio de estado masivo</h3>
+    <p id="bulk-msg"></p>
+    <select id="bulk-sel"></select>
+    <div class="dialog-btns">
+      <button class="btn btn-outline" onclick="closeDlg('dlg-bulk')">Cancelar</button>
+      <button class="btn btn-orange" onclick="applyBulk()">Aplicar a todas</button>
+    </div>
   </div>
 </div>
 
@@ -1633,7 +1648,7 @@ function renderAllTable(){
   tbody.innerHTML=shown.map((r,idx)=>{
     const lid='ld-all-'+idx;
     return `<tr>
-    <td class="order-id"><span onclick="toggleRow('${lid}',this)" title="Ver líneas" style="cursor:pointer;color:#E8481A;font-weight:700;margin-right:6px;user-select:none">▸</span>${r.orden}</td><td>${r.cliente}</td><td>${nodoBadge(r.nodo)}</td>
+    <td class="order-id"><input type="checkbox" class="sel-chk" value="${r.orden}" onclick="onSelChk(this)" style="margin-right:6px;vertical-align:middle"${selOrdenes.has(r.orden)?' checked':''}><span onclick="toggleRow('${lid}',this)" title="Ver líneas" style="cursor:pointer;color:#E8481A;font-weight:700;margin-right:4px;user-select:none">▸</span>${r.orden}</td><td>${r.cliente}</td><td>${nodoBadge(r.nodo)}</td>
     <td>${badge(TIPO_LBL[r.fuente],TIPO_CSS[r.fuente])}</td><td>${estBadge(r.estado)}${editedMark(r)}</td>
     <td style="color:#6c757d">${r.subestado||'—'}</td><td>${r.region||'—'}</td>
     <td style="text-align:right">${r.items||1}</td>
@@ -1644,6 +1659,7 @@ function renderAllTable(){
     <tr id="${lid}" class="node-detail-row"><td colspan="12"><div class="node-detail-inner">${lineDetailHTML(r)}</div></td></tr>`;
   }).join('')
     +(rows.length>ALL_CAP?`<tr><td colspan="12" style="text-align:center;padding:10px;color:#d97706;font-weight:600">Mostrando ${fmtNum(ALL_CAP)} de ${fmtNum(rows.length)} — afiná el filtro para ver el resto</td></tr>`:'');
+  updateBulkUI();const _ca=document.getElementById('chk-all');if(_ca)_ca.checked=false;
 }
 // #21/#20: detalle por línea de una orden (entregado/pedido, estado y motivo) para el drill-down.
 function lineDetailHTML(r){
@@ -1664,6 +1680,39 @@ function toggleRow(id,btn){
   const row=document.getElementById(id);if(!row)return;
   const open=row.classList.toggle('open');
   if(btn)btn.textContent=open?'▾':'▸';
+}
+// ── Selección múltiple + cambio de estado MASIVO (Detalle Órdenes) ──
+let selOrdenes=new Set();
+function onSelChk(cb){if(cb.checked)selOrdenes.add(cb.value);else selOrdenes.delete(cb.value);updateBulkUI();}
+function toggleAllSel(cb){
+  document.querySelectorAll('#tbody-all-orders .sel-chk').forEach(c=>{c.checked=cb.checked;if(cb.checked)selOrdenes.add(c.value);else selOrdenes.delete(c.value);});
+  updateBulkUI();
+}
+function updateBulkUI(){
+  const btn=document.getElementById('btn-bulk');if(!btn)return;
+  const n=selOrdenes.size;const sp=document.getElementById('bulk-n');if(sp)sp.textContent=n;
+  btn.style.display=(n>0&&isAuthValid())?'inline-flex':'none';
+}
+function openBulkEditor(){
+  if(!isAuthValid()){toast('🔒 Iniciá sesión para corregir estados','err');return;}
+  if(!selOrdenes.size){toast('No hay órdenes seleccionadas');return;}
+  document.getElementById('bulk-msg').innerHTML=`Se agregará un <b>movimiento con la fecha de hoy</b> a <b>${selOrdenes.size}</b> orden(es) seleccionada(s). Se conserva el historial de cada una.`;
+  document.getElementById('bulk-sel').innerHTML=ESTADOS_EDITABLES.map(e=>`<option value="${e}">${e}</option>`).join('');
+  document.getElementById('dlg-bulk').classList.add('show');
+}
+function applyBulk(){
+  if(!isAuthValid()){toast('🔒 Tu sesión venció — iniciá sesión de nuevo','err');return;}
+  const estado=document.getElementById('bulk-sel').value;
+  const s=load();if(!Array.isArray(s.manualMoves))s.manualMoves=[];
+  const today=todayLocal(),by=currentUser(),at=new Date().toISOString();
+  const all=getAllRows();
+  selOrdenes.forEach(orden=>{
+    const ctx=all.find(r=>r.orden===orden&&!r._manual)||{};
+    s.manualMoves.push({orden,estado,dateStr:today,by,at,nodo:ctx.nodo||'',cliente:ctx.cliente||'',region:ctx.region||'',fuente:ctx.fuente||'um'});
+  });
+  const n=selOrdenes.size;
+  save(s);selOrdenes=new Set();closeDlg('dlg-bulk');rebuildAll();
+  toast(`✓ ${n} orden(es) cambiada(s) a "${estado}" (movimiento de hoy).`);
 }
 // #20: clic en el N° de orden → abre una VENTANA (modal) con todos los movimientos de esa orden,
 // SIN tocar la vista actual ni sus filtros. Al cerrar, seguís donde estabas.
