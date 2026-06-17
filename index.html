@@ -299,8 +299,9 @@ table.files-table tr:last-child td{border-bottom:none}
     <label>Stock</label>
     <select id="fil-stock" onchange="applyFilters()">
       <option value="">Todas</option>
-      <option value="stock">Solo en stock (no salió)</option>
-      <option value="despachado">Solo despachadas</option>
+      <option value="stock">Pendiente recepción (nunca salió)</option>
+      <option value="um">Pendiente última milla (volvió)</option>
+      <option value="despachado">Con movimiento (ya salió)</option>
     </select>
   </div>
   <button onclick="applyFilters()" style="background:#E8481A;color:#fff;border:none;border-radius:6px;padding:7px 16px;font-size:13px;font-weight:700;cursor:pointer;align-self:flex-end">🔍 Buscar</button>
@@ -822,7 +823,8 @@ const CHART_COLORS=['#16a34a','#dc2626','#d97706','#9ca3af'];
 const sortState={rec:{col:-1,dir:1},des:{col:-1,dir:1},all:{col:-1,dir:1}};
 const gf={anio:'',mes:'',fechaDesde:'',fechaHasta:'',operacion:'',nodo:'',estado:'',stock:''};
 const MESES=['','Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
-let GF_STOCK_SET=null; // set de órdenes en stock (recibidas y no despachadas), recalculado en rebuildAll
+let GF_STOCK_SET=null; // stock pendiente de RECEPCIÓN (nunca salió), recalculado en rebuildAll
+let GF_STOCK_UM=null;  // pendiente de ÚLTIMA MILLA (No entregado que volvió)
 const charts={};
 
 // ════════════════════════════════════════════
@@ -1187,11 +1189,14 @@ function getStockSets(){
   // Último estado por orden (incluye los movimientos manuales), siempre en único.
   const desEstado={};getDesRowsUnique().forEach(r=>{desEstado[r.orden]=r.estado;});
   const desOrders=new Set(Object.keys(desEstado));
-  // EN STOCK = recibidas cuyo último estado es "nunca despachada" o "No entregado" (volvió a bodega).
-  // Entregado / Parcial / Devuelto / Extraviado / Pendiente NO son stock.
-  const enStock=new Set([...recOrders].filter(o=>{const e=desEstado[o];return e===undefined||e==='No entregado';}));
-  const enDespacho=new Set([...recOrders].filter(o=>desOrders.has(o)&&!enStock.has(o)));
-  return{recOrders,desOrders,enDespacho,enStock};
+  // STOCK PENDIENTE DE RECEPCIÓN = recibidas que NUNCA salieron a ruta (sin movimiento de despacho).
+  const enStock=new Set([...recOrders].filter(o=>desEstado[o]===undefined));
+  // PENDIENTE DE ÚLTIMA MILLA = salió a ruta y volvió como "No entregado" (en stock, esperando re-ruta).
+  // Ya tuvo movimiento → deja de ser pendiente de recepción.
+  const enStockUM=new Set([...recOrders].filter(o=>desEstado[o]==='No entregado'));
+  // En despacho = recibidas que tuvieron algún movimiento de despacho (Recibidas = enStock + enDespacho).
+  const enDespacho=new Set([...recOrders].filter(o=>desOrders.has(o)));
+  return{recOrders,desOrders,enDespacho,enStock,enStockUM};
 }
 
 // ════════════════════════════════════════════
@@ -1227,10 +1232,12 @@ function matchGF(r){
     if(gf.operacion==='Canon'&&r.fuente==='rosen')return false;
     if(gf.operacion==='Rosen'&&r.fuente!=='rosen')return false;
   }
-  if(gf.stock&&GF_STOCK_SET){
-    const inStock=GF_STOCK_SET.has(r.orden);
-    if(gf.stock==='stock'&&!inStock)return false;       // solo recibidas que no salieron
-    if(gf.stock==='despachado'&&inStock)return false;    // solo las que ya salieron
+  if(gf.stock){
+    const enRec=GF_STOCK_SET&&GF_STOCK_SET.has(r.orden);
+    const enUM=GF_STOCK_UM&&GF_STOCK_UM.has(r.orden);
+    if(gf.stock==='stock'&&!enRec)return false;        // pendiente de recepción (nunca salió)
+    if(gf.stock==='um'&&!enUM)return false;             // pendiente de última milla (No entregado, volvió)
+    if(gf.stock==='despachado'&&enRec)return false;     // que ya tuvo movimiento
   }
   return true;
 }
@@ -1891,7 +1898,7 @@ function clearEstadoOverride(){   // quita TODOS los movimientos manuales de la 
 }
 
 function rebuildAll(){
-  GF_STOCK_SET=getStockSets().enStock;   // refresca el set de stock para el filtro global
+  {const _ss=getStockSets();GF_STOCK_SET=_ss.enStock;GF_STOCK_UM=_ss.enStockUM;}   // refresca sets de stock para el filtro global
   const recRows=getRecRows(),desRows=getDesRows();
   renderSummaryCards();
   renderRecNodesTable(recRows);
