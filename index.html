@@ -55,22 +55,22 @@ body{background:#f0f2f5;color:#1a1d2e;font-family:'Segoe UI',system-ui,-apple-sy
 /* ── CARDS ROW ── */
 .summary-cards{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:24px}
 .summary-card{background:#fff;border-radius:10px;border:1px solid #e2e6ea;padding:18px 20px;border-left:4px solid #e2e6ea}
-.summary-card.c-rm{border-left-color:#2563eb}
-.summary-card.c-vina{border-left-color:#06b6d4}
-.summary-card.r-vina{border-left-color:#f97316}
-.summary-card.r-serena{border-left-color:#9333ea}
+.summary-card.c-rm{border-left-color:#002E5D}
+.summary-card.c-vina{border-left-color:#002E5D}
+.summary-card.r-vina{border-left-color:#FF6600}
+.summary-card.r-serena{border-left-color:#FF6600}
 .sc-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}
 .sc-name{font-size:15px;font-weight:700}
 .sc-tag{font-size:10px;font-weight:700;padding:2px 7px;border-radius:20px;text-transform:uppercase;letter-spacing:.05em}
-.tag-c{background:#dbeafe;color:#1d4ed8}
-.tag-r{background:#fff7ed;color:#c2410c}
+.tag-c{background:#dbe7f3;color:#002E5D}
+.tag-r{background:#ffe7d6;color:#c2410c}
 .sc-kpis{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px}
 .sc-kpi{}
 .sc-kpi-val{font-size:24px;font-weight:800;line-height:1}
 .sc-kpi-lbl{font-size:10px;color:#6c757d;margin-top:2px;text-transform:uppercase;letter-spacing:.04em}
-.kv-green{color:#16a34a}
-.kv-red{color:#dc2626}
-.kv-yellow{color:#d97706}
+.kv-green{color:#002E5D}
+.kv-red{color:#FF6600}
+.kv-yellow{color:#E0A800}
 .sc-bar{background:#e9ecef;border-radius:3px;height:5px;overflow:hidden;margin-top:10px}
 .sc-bar-fill{height:100%;border-radius:3px;transition:width .6s}
 .sc-bar-meta{display:flex;justify-content:space-between;font-size:11px;color:#6c757d;margin-top:4px}
@@ -112,8 +112,8 @@ table.nodes-table tr:hover td{background:#fafbfc}
 .pct-wrap{display:flex;align-items:center;gap:8px}
 .pct-bar{flex:1;background:#e9ecef;border-radius:3px;height:7px;overflow:hidden}
 .pct-fill{height:100%;border-radius:3px}
-.fill-orange{background:#f97316}
-.fill-green{background:#16a34a}
+.fill-orange{background:#FF6600}
+.fill-green{background:#002E5D}
 .pct-val{font-size:12px;font-weight:700;min-width:38px;text-align:right}
 
 /* ── ORDERS TABLE ── */
@@ -140,21 +140,21 @@ table.orders-table tr:last-child td{border-bottom:none}
 
 /* ── BADGES ── */
 .badge{display:inline-block;padding:3px 8px;border-radius:20px;font-size:11px;font-weight:700;white-space:nowrap}
-.b-ent{background:#dcfce7;color:#15803d}
-.b-no{background:#fee2e2;color:#b91c1c}
-.b-par{background:#fef9c3;color:#854d0e}
-.b-bod{background:#dbeafe;color:#1d4ed8}
+.b-ent{background:#dbe7f3;color:#002E5D}
+.b-no{background:#ffe7d6;color:#c2410c}
+.b-par{background:#fdf2c7;color:#8a6a00}
+.b-bod{background:#dbe7f3;color:#002E5D}
 .b-pen{background:#f3f4f6;color:#6b7280}
 .b-dev{background:#ede9fe;color:#6d28d9}
 .b-ext{background:#1f2937;color:#fff}
 .edited-mark{display:inline-block;margin-left:5px;color:#E8481A;font-weight:700;cursor:help}
 .btn-edit{background:none;border:1px solid #dee2e6;border-radius:5px;padding:3px 9px;font-size:12px;cursor:pointer;color:#6c757d;transition:all .15s}
 .btn-edit:hover{border-color:#E8481A;color:#E8481A}
-.b-crm{background:#dbeafe;color:#1d4ed8}
-.b-cvina{background:#cffafe;color:#0e7490}
-.b-rvina{background:#fff7ed;color:#c2410c}
-.b-rser{background:#f3e8ff;color:#7e22ce}
-.b-tipo-troncal{background:#eff6ff;color:#2563eb}
+.b-crm{background:#dbe7f3;color:#002E5D}
+.b-cvina{background:#e3edf5;color:#0a4a86}
+.b-rvina{background:#ffe7d6;color:#c2410c}
+.b-rser{background:#ffeede;color:#b3470f}
+.b-tipo-troncal{background:#eff6ff;color:#002E5D}
 .b-tipo-um{background:#ecfeff;color:#0891b2}
 .b-tipo-rosen{background:#fff7ed;color:#c2410c}
 
@@ -171,13 +171,13 @@ table.orders-table tr:last-child td{border-bottom:none}
 .upload-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:28px}
 .dropzone{background:#fff;border:2px dashed #dee2e6;border-radius:10px;padding:24px;text-align:center;cursor:pointer;transition:all .15s;position:relative}
 .dropzone:hover,.dropzone.drag{border-color:#E8481A;background:#fff3f0}
-.dropzone.loaded{border-color:#16a34a;border-style:solid;background:#f0fdf4}
+.dropzone.loaded{border-color:#002E5D;border-style:solid;background:#f0fdf4}
 .dropzone input[type=file]{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%}
 .dz-type-badge{display:inline-block;padding:2px 8px;border-radius:20px;font-size:10px;font-weight:700;text-transform:uppercase;margin-bottom:10px}
 .dz-icon{font-size:28px;margin-bottom:8px}
 .dz-title{font-size:14px;font-weight:700;margin-bottom:4px}
 .dz-desc{font-size:12px;color:#6c757d}
-.dz-status{margin-top:8px;font-size:12px;color:#16a34a;font-weight:600;display:none}
+.dz-status{margin-top:8px;font-size:12px;color:#002E5D;font-weight:600;display:none}
 .dropzone.loaded .dz-status{display:block}
 .dz-status-pending{color:#6c757d;font-size:11px;margin-top:6px}
 
@@ -226,9 +226,8 @@ table.files-table tr:last-child td{border-bottom:none}
   </div>
   <div class="header-right">
     <div class="header-info" id="nav-date" style="margin-right:8px"><span>—</span></div>
-    <div class="header-info" id="header-info">Sin archivos cargados</div>
-    <button class="btn btn-outline" onclick="exportJSON()">Exportar JSON</button>
-    <button class="btn btn-orange" onclick="switchToCargar()">+ Cargar</button>
+    <div class="header-info" id="header-info" style="display:none">Sin archivos cargados</div>
+    <button class="btn btn-outline" id="btn-export-json" onclick="exportJSON()" style="display:none">Exportar JSON</button>
   </div>
 </header>
 
@@ -326,8 +325,8 @@ table.files-table tr:last-child td{border-bottom:none}
       <table class="nodes-table" id="nt-recepcion">
         <thead><tr>
           <th>Nodo</th><th style="text-align:right">Recibidas</th>
-          <th style="text-align:right;color:#d97706">En Despacho</th>
-          <th style="text-align:right;color:#16a34a">En Stock</th>
+          <th style="text-align:right;color:#E0A800">En Despacho</th>
+          <th style="text-align:right;color:#002E5D">En Stock</th>
           <th style="text-align:right">Vol m³</th><th style="text-align:right">Peso kg</th>
         </tr></thead>
         <tbody id="nt-rec-body"><tr><td colspan="7" style="text-align:center;padding:24px;color:#adb5bd">Sin datos — cargá el archivo Troncal Canon</td></tr></tbody>
@@ -360,8 +359,8 @@ table.files-table tr:last-child td{border-bottom:none}
       <thead><tr>
         <th>Nodo</th>
         <th style="text-align:right">Recibidas</th>
-        <th style="text-align:right;color:#d97706">En Despacho</th>
-        <th style="text-align:right;color:#16a34a">En Stock</th>
+        <th style="text-align:right;color:#E0A800">En Despacho</th>
+        <th style="text-align:right;color:#002E5D">En Stock</th>
         <th style="text-align:right">Vol m³</th>
         <th style="text-align:right">Peso kg</th>
         <th>Fecha compromiso</th>
@@ -825,7 +824,7 @@ const ESTADOS_EDITABLES=['Entregado','No entregado','Entrega parcial','Devuelto 
 const ESTADOS_CIERRE=['Entregado','Entrega parcial','Devuelto al mandante','Extraviado']; // ya resueltas → no son stock pendiente
 const NODO_CSS={'C_RM':'b-crm','C_VIÑA':'b-cvina','R_VIÑA':'b-rvina','R_SERENA':'b-rser'};
 const CHART_ESTADOS=['Entregado','No entregado','Entrega parcial','Ingresado al sistema'];
-const CHART_COLORS=['#16a34a','#dc2626','#d97706','#9ca3af'];
+const CHART_COLORS=['#002E5D','#FF6600','#E0A800','#9ca3af'];
 const sortState={rec:{col:-1,dir:1},des:{col:-1,dir:1},all:{col:-1,dir:1}};
 const gf={anio:'',mes:'',fechaDesde:'',fechaHasta:'',operacion:'',nodo:'',estado:'',stock:''};
 const MESES=['','Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
@@ -868,6 +867,10 @@ function lockCargarContent(locked){
 }
 
 function updateAuthUI(){
+  // "Exportar JSON" y el resumen de carga (días/última fecha) solo visibles con sesión de admin
+  const _show=isAuthValid();
+  const bej=document.getElementById('btn-export-json');if(bej)bej.style.display=_show?'inline-flex':'none';
+  const hi=document.getElementById('header-info');if(hi)hi.style.display=_show?'':'none';
   const panel=document.getElementById('authPanel');
   if(!panel)return;
   if(isAuthValid()){
@@ -1349,11 +1352,11 @@ function renderSummaryCards(){
       <div class="sc-kpis">
         <div><div class="sc-kpi-val kv-green">${fmtNum(desEnt)}</div><div class="sc-kpi-lbl">Entregadas</div></div>
         <div><div class="sc-kpi-val kv-red">${fmtNum(desNo)}</div><div class="sc-kpi-lbl">No entregadas</div></div>
-        <div><div class="sc-kpi-val" style="color:#f97316;font-size:18px">${fmtNum(desPar)}</div><div class="sc-kpi-lbl">Ent. parcial</div></div>
+        <div><div class="sc-kpi-val" style="color:#E0A800;font-size:18px">${fmtNum(desPar)}</div><div class="sc-kpi-lbl">Ent. parcial</div></div>
         <div><div class="sc-kpi-val" style="color:#9ca3af;font-size:18px">${fmtNum(desPen)}</div><div class="sc-kpi-lbl">Pendiente</div></div>
       </div>
-      <div class="sc-bar"><div class="sc-bar-fill" style="width:${Math.min(desPct,100)}%;background:${desPct>=90?'#16a34a':desPct>=70?'#d97706':'#f97316'}"></div></div>
-      <div class="sc-bar-meta"><span style="font-weight:600">${fmtNum(desTotal)} órdenes · efectividad</span><span style="font-weight:700;color:${desPct>=90?'#16a34a':desPct>=70?'#d97706':'#dc2626'}">${pctLbl(desPct)}</span></div>`
+      <div class="sc-bar"><div class="sc-bar-fill" style="width:${Math.min(desPct,100)}%;background:${desPct>=90?'#002E5D':desPct>=70?'#E0A800':'#FF6600'}"></div></div>
+      <div class="sc-bar-meta"><span style="font-weight:600">${fmtNum(desTotal)} órdenes · efectividad</span><span style="font-weight:700;color:${desPct>=90?'#002E5D':desPct>=70?'#E0A800':'#FF6600'}">${pctLbl(desPct)}</span></div>`
       :'<div class="sc-divider"></div><div class="sc-section-lbl" style="color:#adb5bd">Sin datos despacho</div>'}`;
   });
 }
@@ -1408,8 +1411,8 @@ function renderRecNodesTable(recRows){
     html+=`<tr>
       <td class="node-name-cell">${nodo}</td>
       <td class="num-cell" style="font-size:16px;color:#1e3a8a">${fmtNum(total)}</td>
-      <td class="num-cell" style="color:#d97706;font-weight:700">${fmtNum(nEnDespacho)}</td>
-      <td class="num-cell" style="color:#16a34a;font-weight:700">${fmtNum(nEnStock)}</td>
+      <td class="num-cell" style="color:#E0A800;font-weight:700">${fmtNum(nEnDespacho)}</td>
+      <td class="num-cell" style="color:#002E5D;font-weight:700">${fmtNum(nEnStock)}</td>
       <td class="num-cell">${vol>0?fmtNum(vol,2):'—'}</td>
       <td class="num-cell">${peso>0?fmtNum(peso,1):'—'}</td>
       <td style="padding:14px 16px">${fechaRange}</td>
@@ -1447,8 +1450,8 @@ function renderDesNodesTable(desRows){
       return`<tr>
         <td class="node-name-cell">${nodo}</td>
         <td class="num-cell">${fmtNum(total)}</td>
-        <td class="num-cell" style="color:#d97706;font-weight:700">${fmtNum(nED)}</td>
-        <td class="num-cell" style="color:#16a34a;font-weight:700">${fmtNum(nES)}</td>
+        <td class="num-cell" style="color:#E0A800;font-weight:700">${fmtNum(nED)}</td>
+        <td class="num-cell" style="color:#002E5D;font-weight:700">${fmtNum(nES)}</td>
         <td class="num-cell">${fmtNum(vol,2)}</td>
         <td class="num-cell">${fmtNum(peso,1)}</td></tr>`;
     }).join('');
@@ -1476,13 +1479,13 @@ function renderDesNodesTable(desRows){
     const par=nr.filter(r=>r.estado==='Entrega parcial').length;
     const efect=total?ent/total*100:0;
     const vol=nr.reduce((s,r)=>s+r.volumen,0);
-    const color=efect>=90?'#16a34a':efect>=70?'#d97706':'#f97316';
+    const color=efect>=90?'#002E5D':efect>=70?'#E0A800':'#FF6600';
     return`<tr>
       <td class="node-name-cell">${nodo}</td>
       <td class="num-cell">${fmtNum(total)}</td>
-      <td class="num-cell" style="color:#16a34a;font-weight:700">${fmtNum(ent)}</td>
+      <td class="num-cell" style="color:#002E5D;font-weight:700">${fmtNum(ent)}</td>
       <td class="num-cell" style="color:#dc2626;font-weight:700">${fmtNum(noE)}</td>
-      ${withPar?`<td class="num-cell" style="color:#d97706">${par}</td>`:''}
+      ${withPar?`<td class="num-cell" style="color:#E0A800">${par}</td>`:''}
       <td class="pct-cell">${pctBar(efect,color)}</td>
       <td class="num-cell">${fmtNum(vol,2)}</td></tr>`;
   }).join('');
@@ -1652,7 +1655,7 @@ function renderRecTable(){
     <td>${r.fechaMax?`<span class="fecha-chip">${r.fechaMax}</span>`:'—'}</td>
     <td style="text-align:right">${r.volumen>0?fmtNum(r.volumen,3):'—'}</td>
     <td style="text-align:right">${r.peso>0?fmtNum(r.peso,1):'—'}</td></tr>`).join('')
-    +(rows.length>ALL_CAP?`<tr><td colspan="9" style="text-align:center;padding:10px;color:#d97706;font-weight:600">Mostrando ${fmtNum(ALL_CAP)} de ${fmtNum(rows.length)} — afiná el filtro para ver el resto</td></tr>`:'');
+    +(rows.length>ALL_CAP?`<tr><td colspan="9" style="text-align:center;padding:10px;color:#E0A800;font-weight:600">Mostrando ${fmtNum(ALL_CAP)} de ${fmtNum(rows.length)} — afiná el filtro para ver el resto</td></tr>`:'');
 }
 
 function renderDesTable(){
@@ -1687,7 +1690,7 @@ function renderDesTable(){
     <td style="text-align:right">${r.peso>0?fmtNum(r.peso,1):'—'}</td>
     <td><span class="fecha-chip">${fmtD(r.dateStr)}</span></td>
     <td>${cm[r.orden]?`<span class="fecha-chip">${fmtD(cm[r.orden])}</span>`:'—'}</td></tr>`).join('')
-    +(rows.length>ALL_CAP?`<tr><td colspan="12" style="text-align:center;padding:10px;color:#d97706;font-weight:600">Mostrando ${fmtNum(ALL_CAP)} de ${fmtNum(rows.length)} — afiná el filtro para ver el resto</td></tr>`:'');
+    +(rows.length>ALL_CAP?`<tr><td colspan="12" style="text-align:center;padding:10px;color:#E0A800;font-weight:600">Mostrando ${fmtNum(ALL_CAP)} de ${fmtNum(rows.length)} — afiná el filtro para ver el resto</td></tr>`:'');
 }
 
 // Marca ✎ para órdenes con corrección manual de estado (#15).
@@ -1738,7 +1741,7 @@ function renderAllTable(){
     <td>${puedeEditar?`<button class="btn-edit" onclick="openEstadoEditor('${r.orden}','${r.estado}')">✎ Estado</button>`:'<span style="color:#cbd5e1">—</span>'}</td></tr>
     <tr id="${lid}" class="node-detail-row"><td colspan="13"><div class="node-detail-inner">${lineDetailHTML(r)}</div></td></tr>`;
   }).join('')
-    +(rows.length>ALL_CAP?`<tr><td colspan="13" style="text-align:center;padding:10px;color:#d97706;font-weight:600">Mostrando ${fmtNum(ALL_CAP)} de ${fmtNum(rows.length)} — afiná el filtro para ver el resto</td></tr>`:'');
+    +(rows.length>ALL_CAP?`<tr><td colspan="13" style="text-align:center;padding:10px;color:#E0A800;font-weight:600">Mostrando ${fmtNum(ALL_CAP)} de ${fmtNum(rows.length)} — afiná el filtro para ver el resto</td></tr>`:'');
   updateBulkUI();const _ca=document.getElementById('chk-all');if(_ca)_ca.checked=false;
 }
 // #21/#20: detalle por línea de una orden (entregado/pedido, estado y motivo) para el drill-down.
@@ -1748,7 +1751,7 @@ function lineDetailHTML(r){
   const filas=ls.map(l=>{
     const ped=+l.ped||0,ent=+l.ent||0;
     const ok=ped>0&&ent>=ped,parc=ent>0&&ent<ped;
-    const chip=ok?'<span style="color:#16a34a;font-weight:700">✓</span>':parc?'<span style="color:#d97706;font-weight:700">◐</span>':'<span style="color:#dc2626;font-weight:700">✗</span>';
+    const chip=ok?'<span style="color:#002E5D;font-weight:700">✓</span>':parc?'<span style="color:#E0A800;font-weight:700">◐</span>':'<span style="color:#dc2626;font-weight:700">✗</span>';
     const estL=l.estadoItem||(ok?'Entregado':parc?'Entrega parcial':(r.estado||'—'));
     return `<tr><td>${chip}</td><td>${l.codItem||'—'}</td><td>${l.descItem||'—'}</td>
       <td style="text-align:right">${fmtNum(ent)} / ${fmtNum(ped)}</td><td>${estBadge(estL)}</td>
