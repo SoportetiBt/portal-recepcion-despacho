@@ -53,18 +53,18 @@ body{background:#f0f2f5;color:#1a1d2e;font-family:'Segoe UI',system-ui,-apple-sy
 .tab-content.active{display:block}
 
 /* ── CARDS ROW ── */
-.summary-cards{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:24px}
+.summary-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:16px;margin-bottom:24px}
 .summary-card{background:#fff;border-radius:10px;border:1px solid #e2e6ea;padding:18px 20px;border-left:4px solid #e2e6ea}
 .summary-card.c-rm{border-left-color:#002E5D}
 .summary-card.c-vina{border-left-color:#002E5D}
 .summary-card.r-vina{border-left-color:#FF6600}
 .summary-card.r-serena{border-left-color:#FF6600}
-.sc-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}
-.sc-name{font-size:15px;font-weight:700}
+.sc-header{display:flex;flex-direction:column;align-items:center;gap:5px;margin-bottom:14px}
+.sc-name{font-size:22px;font-weight:800;text-align:center;line-height:1.1}
 .sc-tag{font-size:10px;font-weight:700;padding:2px 7px;border-radius:20px;text-transform:uppercase;letter-spacing:.05em}
 .tag-c{background:#dbe7f3;color:#002E5D}
 .tag-r{background:#ffe7d6;color:#c2410c}
-.sc-kpis{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px}
+.sc-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(88px,1fr));gap:10px 14px;margin-bottom:12px}
 .sc-kpi{}
 .sc-kpi-val{font-size:24px;font-weight:800;line-height:1}
 .sc-kpi-lbl{font-size:10px;color:#6c757d;margin-top:2px;text-transform:uppercase;letter-spacing:.04em}
@@ -168,7 +168,7 @@ table.orders-table tr:last-child td{border-bottom:none}
 .chart-center .lbl{font-size:10px;color:#6c757d}
 
 /* ── UPLOAD TAB ── */
-.upload-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:28px}
+.upload-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:16px;margin-bottom:28px}
 .dropzone{background:#fff;border:2px dashed #dee2e6;border-radius:10px;padding:24px;text-align:center;cursor:pointer;transition:all .15s;position:relative}
 .dropzone:hover,.dropzone.drag{border-color:#E8481A;background:#fff3f0}
 .dropzone.loaded{border-color:#002E5D;border-style:solid;background:#f0fdf4}
@@ -231,12 +231,20 @@ table.files-table tr:last-child td{border-bottom:none}
   </div>
 </header>
 
+<!-- ══════════ GRANDES PESTAÑAS POR CLIENTE ══════════ -->
+<div style="display:flex;gap:10px;padding:12px 28px 0;background:#fff">
+  <button id="cl-canon" onclick="setCliente('canon')" style="flex:1;padding:13px;border-radius:10px 10px 0 0;border:1px solid #e2e6ea;border-bottom:none;font-size:16px;font-weight:700;cursor:pointer;background:#fff">Canon</button>
+  <button id="cl-rosen" onclick="setCliente('rosen')" style="flex:1;padding:13px;border-radius:10px 10px 0 0;border:1px solid #e2e6ea;border-bottom:none;font-size:16px;font-weight:700;cursor:pointer;background:#fff">Rosen</button>
+</div>
+
 <!-- ══════════ TABS ══════════ -->
 <nav class="tabs-bar">
   <div class="tab active" onclick="showTab('resumen',this)">Resumen</div>
-  <div class="tab" onclick="showTab('recepcion',this)">Recepción</div>
+  <div class="tab" id="tabbtn-recepcion" onclick="showTab('recepcion',this)">Recepción</div>
+  <div class="tab" id="tabbtn-recrosen" onclick="showTab('recrosen',this)">Recepción</div>
   <div class="tab" onclick="showTab('despacho',this)">Despacho Última Milla</div>
   <div class="tab" onclick="showTab('detalle',this)">Detalle Órdenes</div>
+  <div class="tab" id="tabbtn-stock" onclick="showTab('stock',this)">Stock</div>
   <div class="tab" id="tab-btn-cargar" onclick="showTab('cargar',this)">Cargar Archivos</div>
 </nav>
 
@@ -568,6 +576,47 @@ table.files-table tr:last-child td{border-bottom:none}
 </div>
 
 <!-- ══════════ TAB: CARGAR ARCHIVOS ══════════ -->
+<div class="tab-content" id="tab-stock">
+  <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:14px">
+    <div>
+      <strong style="font-size:15px">Stock — todo en un solo lugar</strong>
+      <div style="font-size:12px;color:#6c757d;margin-top:2px" id="stock-sub">Lo que está en bodega: nunca salió + volvió y no salió.</div>
+    </div>
+    <input type="search" id="stock-q" class="search-input" placeholder="Buscar SKU u orden…" oninput="renderStock()" style="min-width:220px">
+  </div>
+  <div id="stock-body"></div>
+</div>
+
+<div class="tab-content" id="tab-recrosen">
+  <div id="rosen-empty" style="padding:42px;text-align:center;color:#6c757d">Sube en <b>Cargar Archivos</b> la <b>Recepción bodega</b> y la <b>Receta del día</b> (Componentes) de Rosen. El despacho/última milla se toma de la <b>Preliquidación Rosen</b> que ya cargas para Despacho. Con eso se calcula lo que salió, el inventario que queda y los pedidos pendientes en bodega.</div>
+  <div id="rosen-content" style="display:none">
+    <div class="summary-cards" id="rosen-kpis" style="grid-template-columns:repeat(auto-fit,minmax(150px,1fr))"></div>
+    <div id="rosen-note" style="background:#fff8ef;border:1px solid #ffe3c2;border-radius:8px;padding:10px 14px;font-size:12.5px;color:#7a5b1e;margin-bottom:24px"></div>
+    <div class="panel">
+      <div class="panel-header">
+        <div><div class="panel-title">Pedidos (F12)</div><div class="panel-subtitle">Clic en la orden para ver sus componentes — Rosen</div></div>
+        <div class="panel-actions" style="display:flex;align-items:center;flex-wrap:wrap;gap:8px">
+          <select id="rosen-fOrd" class="f-sel" onchange="renderRosen()"><option value="">Todos</option><option value="pend">Pendientes en bodega</option><option value="volvio">Volvieron (reingreso)</option><option value="salio">Salieron</option><option value="cerrada">Cerradas (Dev/Extrav)</option></select>
+          <input type="search" id="rosen-qOrd" class="search-input" placeholder="🔍 Buscar F12 / cliente" oninput="renderRosen()" style="width:180px">
+          <button class="btn btn-outline btn-sm" onclick="exportRosenCob()">⬇ Excel</button>
+        </div>
+      </div>
+      <div class="table-scroll"><table class="nodes-table" id="rosen-tOrd"></table></div>
+    </div>
+    <div class="panel">
+      <div class="panel-header">
+        <div><div class="panel-title">Inventario por SKU</div><div class="panel-subtitle">Recibido − despachado = queda — Rosen</div></div>
+        <div class="panel-actions" style="display:flex;align-items:center;flex-wrap:wrap;gap:8px">
+          <select id="rosen-fSku" class="f-sel" onchange="renderRosen()"><option value="">Todos</option><option value="cero">OK / cuadrado (queda = 0)</option><option value="inv">Sobrante (queda &gt; 0)</option><option value="corto">Descuadre (queda &lt; 0)</option></select>
+          <input type="search" id="rosen-qSku" class="search-input" placeholder="🔍 Buscar SKU / descripción" oninput="renderRosen()" style="width:180px">
+          <button class="btn btn-outline btn-sm" onclick="exportRosenStock()">⬇ Excel inventario</button>
+        </div>
+      </div>
+      <div class="table-scroll"><table class="nodes-table" id="rosen-tSku"></table></div>
+    </div>
+  </div>
+</div>
+
 <div class="tab-content" id="tab-cargar" style="position:relative">
 
   <!-- AUTH PANEL -->
@@ -615,8 +664,67 @@ table.files-table tr:last-child td{border-bottom:none}
         <div class="dz-status" id="dst-rosen">✓ Cargado</div>
         <div class="dz-status-pending">Sheet: PdE</div>
       </div>
+      <div class="dropzone" id="dz-rrec" ondragover="dzOver(event,this)" ondragleave="dzOut(this)" ondrop="dzDropRosen(event,'rec')">
+        <input type="file" accept=".xlsx,.xls" onchange="onRosenFile(event,'rec')">
+        <span class="dz-type-badge b-tipo-rosen">Rosen — Recepción</span>
+        <div class="dz-icon">📥</div>
+        <div class="dz-title">Recepción bodega</div>
+        <div class="dz-desc">Stock recibido por SKU</div>
+        <div class="dz-status" id="dst-rrec">✓ Cargado</div>
+        <div class="dz-status-pending">Sheet: Escenario</div>
+      </div>
+      <div class="dropzone" id="dz-rreceta" ondragover="dzOver(event,this)" ondragleave="dzOut(this)" ondrop="dzDropRosen(event,'receta')">
+        <input type="file" accept=".xlsx,.xls" onchange="onRosenFile(event,'receta')">
+        <span class="dz-type-badge b-tipo-rosen">Rosen — Receta</span>
+        <div class="dz-icon">🧾</div>
+        <div class="dz-title">Receta del día</div>
+        <div class="dz-desc">Componentes (orden ↔ SKU)</div>
+        <div class="dz-status" id="dst-rreceta">✓ Cargado</div>
+        <div class="dz-status-pending">Sheet: Rpt. HojasRutas</div>
+      </div>
+      <div class="dropzone" id="dz-rini" ondragover="dzOver(event,this)" ondragleave="dzOut(this)" ondrop="dzDropRosen(event,'ini')" style="border-color:#9b59b6">
+        <input type="file" accept=".xlsx,.xls" onchange="onRosenFile(event,'ini')">
+        <span class="dz-type-badge" style="background:#f3e8fb;color:#7d3c98">Rosen — Stock inicial</span>
+        <div class="dz-icon">🏷️</div>
+        <div class="dz-title">Stock inicial (una vez)</div>
+        <div class="dz-desc">Inventario base por SKU — queda guardado</div>
+        <div class="dz-status" id="dst-rini">✓ Guardado</div>
+        <div class="dz-status-pending">Sheet: Escenario</div>
+      </div>
     </div>
     </div><!-- /upload-lock-wrap -->
+  </div>
+
+  <!-- CARGA MASIVA (solo admin): mes completo, fecha por fila -->
+  <div id="bulk-section" style="display:none;margin-bottom:20px">
+    <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#7d3c98;margin-bottom:12px;display:flex;align-items:center;gap:8px">🗓️ Carga masiva — mes completo (solo admin) <span style="flex:1;height:1px;background:#e4cef5;display:block"></span></div>
+    <div style="background:#f7f0fd;border:1px solid #e4cef5;border-radius:8px;padding:9px 12px;font-size:12px;color:#5b2a7d;margin-bottom:12px">Subí un Excel con varios días o un mes entero. A diferencia de la carga normal, acá <b>cada fila se fecha por su propia columna de fecha</b> (no por el nombre del archivo), así se separa por día en todas las vistas. No afecta la carga diaria.</div>
+    <div class="upload-grid">
+      <div class="dropzone" id="dz-bulk-troncal" ondragover="dzOver(event,this)" ondragleave="dzOut(this)" ondrop="dzDropBulk(event,'troncal',this)" style="border-color:#c9a8e6">
+        <input type="file" accept=".xlsx,.xls" onchange="onFileBulk(event,'troncal',document.getElementById('dz-bulk-troncal'))">
+        <span class="dz-type-badge b-tipo-troncal">Masivo — Troncal Canon</span>
+        <div class="dz-icon">🗓️</div><div class="dz-title">Troncal Canon (mes)</div>
+        <div class="dz-desc">Recepción de varios días</div>
+        <div class="dz-status" id="dst-bulk-troncal">✓ Cargado</div>
+        <div class="dz-status-pending">Fecha por fila</div>
+      </div>
+      <div class="dropzone" id="dz-bulk-um" ondragover="dzOver(event,this)" ondragleave="dzOut(this)" ondrop="dzDropBulk(event,'um',this)" style="border-color:#c9a8e6">
+        <input type="file" accept=".xlsx,.xls" onchange="onFileBulk(event,'um',document.getElementById('dz-bulk-um'))">
+        <span class="dz-type-badge b-tipo-um">Masivo — UM Canon</span>
+        <div class="dz-icon">🗓️</div><div class="dz-title">Última Milla Canon (mes)</div>
+        <div class="dz-desc">Despacho de varios días</div>
+        <div class="dz-status" id="dst-bulk-um">✓ Cargado</div>
+        <div class="dz-status-pending">Fecha por fila</div>
+      </div>
+      <div class="dropzone" id="dz-bulk-rosen" ondragover="dzOver(event,this)" ondragleave="dzOut(this)" ondrop="dzDropBulk(event,'rosen',this)" style="border-color:#c9a8e6">
+        <input type="file" accept=".xlsx,.xls" onchange="onFileBulk(event,'rosen',document.getElementById('dz-bulk-rosen'))">
+        <span class="dz-type-badge b-tipo-rosen">Masivo — Rosen</span>
+        <div class="dz-icon">🗓️</div><div class="dz-title">Preliquidación Rosen (mes)</div>
+        <div class="dz-desc">Despacho de varios días</div>
+        <div class="dz-status" id="dst-bulk-rosen">✓ Cargado</div>
+        <div class="dz-status-pending">Fecha por fila (Fecha Plan)</div>
+      </div>
+    </div>
   </div>
 
   <div id="cargar-files-label" style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#6c757d;margin-bottom:12px;display:flex;align-items:center;gap:8px">Archivos guardados <span style="flex:1;height:1px;background:#e2e6ea;display:block"></span></div>
@@ -624,8 +732,8 @@ table.files-table tr:last-child td{border-bottom:none}
     <div class="files-panel-header">
       <h3>Historial de archivos cargados</h3>
       <div class="btn-group">
-        <button class="btn btn-outline btn-sm" onclick="showDayDialog()">🗑 Eliminar por día...</button>
-        <button class="btn btn-danger btn-sm" onclick="confirmDeleteAll()">✕ Eliminar todo</button>
+        <button class="btn btn-outline btn-sm" id="btn-del-day" onclick="showDayDialog()">🗑 Eliminar por día...</button>
+        <button class="btn btn-danger btn-sm" id="btn-del-all" onclick="confirmDeleteAll()">✕ Eliminar todo</button>
       </div>
     </div>
     <table class="files-table">
@@ -738,6 +846,34 @@ function isAuth(){return!!(SUPABASE_SESSION&&SUPABASE_SESSION.access_token);}
 // Sesión realmente usable = hay token Y no está vencido. Evita el falso "Sesión activa".
 function isAuthValid(){return isAuth()&&!sbExpired();}
 function currentUser(){return(SUPABASE_SESSION&&SUPABASE_SESSION.user&&SUPABASE_SESSION.user.email)||'';}
+// ── ROLES por cuenta (#26): la VISTA es libre (sin login); el login solo habilita CARGAR/MODIFICAR.
+//   pablo.millon@ = admin (todo). canon@ = solo Canon (Troncal+UM). rosen@ = solo Rosen.
+//   Crear canon@bigticket.cl (clave: canon) y rosen@bigticket.cl (clave: rosen) en Supabase con Auto Confirm User.
+const ROLES={
+  'pablo.millon@bigticket.cl':{rol:'admin', sube:['troncal','um','rosen'], cliente:'todos'},
+  'canon@bigticket.cl':       {rol:'canon', sube:['troncal','um'],         cliente:'canon'},
+  'rosen@bigticket.cl':       {rol:'rosen', sube:['rosen'],                cliente:'rosen'}
+};
+function rolActual(){const e=currentUser().toLowerCase().trim();return ROLES[e]||{rol:'admin',sube:['troncal','um','rosen'],cliente:'todos'};}
+function esAdmin(){return rolActual().rol==='admin';}
+function puedeSubir(tipo){return isAuthValid() && rolActual().sube.indexOf(tipo)>=0;}
+// Muestra solo las dropzones que el rol logueado puede cargar (las demás se ocultan).
+function aplicarPermisosRol(){
+  const okCliente=t=>!CLIENT_TIPOS[CLIENTE_SEL]||CLIENT_TIPOS[CLIENTE_SEL].indexOf(t)>=0;
+  const map={troncal:'dz-troncal', um:'dz-um', rosen:'dz-rosen'};
+  Object.keys(map).forEach(t=>{const el=document.getElementById(map[t]);if(el)el.style.display=(puedeSubir(t)&&okCliente(t))?'':'none';});
+  // Las 3 cargas del módulo Rosen (recepción/receta/última milla) van con el permiso 'rosen'.
+  ['dz-rrec','dz-rreceta'].forEach(id=>{const el=document.getElementById(id);if(el)el.style.display=(puedeSubir('rosen')&&okCliente('rosen'))?'':'none';});
+  // B1: el Stock inicial Rosen solo lo ve/carga el ADMIN.
+  const eli=document.getElementById('dz-rini'); if(eli)eli.style.display=(esAdmin()&&okCliente('rosen'))?'':'none';
+  // Carga masiva (mes): SOLO admin; sus dropzones se acotan al cliente activo igual que la carga normal.
+  const bsec=document.getElementById('bulk-section'); if(bsec)bsec.style.display=(esAdmin()&&isAuthValid())?'':'none';
+  [['troncal','dz-bulk-troncal'],['um','dz-bulk-um'],['rosen','dz-bulk-rosen']].forEach(([t,id])=>{const el=document.getElementById(id);if(el)el.style.display=(esAdmin()&&okCliente(t))?'':'none';});
+  // "Eliminar todo" y "Eliminar por día" SOLO para administrador. Los operativos solo borran archivo por archivo (de su cliente).
+  const adm=esAdmin();
+  const bda=document.getElementById('btn-del-all'); if(bda)bda.style.display=adm?'':'none';
+  const bdd=document.getElementById('btn-del-day'); if(bdd)bdd.style.display=adm?'':'none';
+}
 function persistSbSession(){try{if(SUPABASE_SESSION)localStorage.setItem(SB_SESSION_KEY,JSON.stringify(SUPABASE_SESSION));else localStorage.removeItem(SB_SESSION_KEY);}catch(e){}}
 
 // ── Manejo de vencimiento / refresco de token ──
@@ -816,6 +952,10 @@ async function saveSnapshot(data,updatedAt){
 }
 
 const NODES=['C_RM','C_VIÑA','R_VIÑA','R_SERENA'];
+// Nodos por cliente: en la gran pestaña Canon solo se muestran/recorren los nodos Canon, y viceversa.
+const CLIENT_NODES={canon:['C_RM','C_VIÑA'], rosen:['R_VIÑA','R_SERENA']};
+function nodosCliente(){return CLIENT_NODES[CLIENTE_SEL]||NODES;}
+function esNodoDelCliente(n){return nodosCliente().indexOf(n)>=0;}
 const TIPO_LBL={troncal:'Troncal Canon',um:'Última Milla Canon',rosen:'Rosen Preliq.',manual:'✎ Cambio manual'};
 const TIPO_CSS={troncal:'b-tipo-troncal',um:'b-tipo-um',rosen:'b-tipo-rosen',manual:'b-dev'};
 const ESTADO_CSS={'Entregado':'b-ent','No entregado':'b-no','Entrega parcial':'b-par','Bodega RM':'b-bod','Ingresado al sistema':'b-pen','Devuelto al mandante':'b-dev','Extraviado':'b-ext'};
@@ -841,7 +981,7 @@ function save(s){
   s.updatedAt=new Date().toISOString();   // marca de tiempo para resolver nube vs local
   MEM_STORE=s;
   if(LS_AVAILABLE){try{localStorage.setItem(SK,JSON.stringify(s));}catch(e){}}
-  if(isAuth())saveSnapshot({recepcion_despacho:s},s.updatedAt).catch(e=>console.warn('Supabase save:',e));
+  if(isAuth()&&SUPABASE_SESSION.access_token!=='DEMO-LOCAL')saveSnapshot({recepcion_despacho:s},s.updatedAt).catch(e=>console.warn('Supabase save:',e));
 }
 // Decide si aplicar el snapshot de la nube o conservar lo local.
 // NO pisa datos locales más nuevos con una versión más vieja de la nube. Devuelve 'cloud' | 'local'.
@@ -874,12 +1014,15 @@ function updateAuthUI(){
   const panel=document.getElementById('authPanel');
   if(!panel)return;
   if(isAuthValid()){
+    const R=rolActual();
+    const rolTxt={admin:'Administrador — carga Canon y Rosen',canon:'Supervisor Canon — carga Troncal y Última Milla',rosen:'Supervisor Rosen — carga Rosen'}[R.rol]||R.rol;
     panel.innerHTML=`
       <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;background:#f0fdf4;border:1px solid #86efac;padding:12px 16px;border-radius:8px">
-        <span style="font-size:13px"><strong>✓ Sesión activa:</strong> ${currentUser()} — podés cargar y guardar archivos</span>
+        <span style="font-size:13px"><strong>✓ Sesión:</strong> ${currentUser()} · <span style="color:#0F6E56;font-weight:700">${rolTxt}</span></span>
         <button class="btn btn-outline btn-sm" onclick="sbSignOut()">Cerrar sesión</button>
       </div>`;
     lockCargarContent(false);
+    aplicarPermisosRol();
   }else{
     panel.innerHTML=`
       <div style="background:#fff7ed;border:1px solid #fed7aa;padding:14px 16px;border-radius:8px">
@@ -894,10 +1037,23 @@ function updateAuthUI(){
           <button class="btn btn-primary" onclick="doSignIn()" style="font-size:13px">Iniciar sesión</button>
         </div>
         <div id="sbError" style="color:#dc2626;margin-top:8px;font-size:12px;display:none"></div>
-        <div style="font-size:11px;color:#6c757d;margin-top:8px">Solo el administrador puede cargar archivos. El equipo ve los datos sincronizados automáticamente.</div>
+        <div style="font-size:11px;color:#6c757d;margin-top:8px">Ver es libre (sin login). El inicio de sesión es solo para cargar/modificar: <b>admin</b> (todo), <b>Supervisor Canon</b> (canon@ → Troncal + Última Milla), <b>Supervisor Rosen</b> (rosen@ → Rosen).</div>
       </div>`;
     lockCargarContent(true);
   }
+  aplicarTabsCliente();
+}
+// Un supervisor solo ve la gran pestaña de SU cliente (Rosen→solo Rosen, Canon→solo Canon).
+// Admin y quien solo mira (sin login) ven ambas.
+function aplicarTabsCliente(){
+  const R=rolActual();
+  const soloCanon=isAuthValid()&&R.cliente==='canon';
+  const soloRosen=isAuthValid()&&R.cliente==='rosen';
+  const ca=document.getElementById('cl-canon'), ro=document.getElementById('cl-rosen');
+  if(ca)ca.style.display=soloRosen?'none':'';
+  if(ro)ro.style.display=soloCanon?'none':'';
+  if(soloCanon&&CLIENTE_SEL!=='canon')setCliente('canon');
+  if(soloRosen&&CLIENTE_SEL!=='rosen')setCliente('rosen');
 }
 
 async function doSignIn(){
@@ -905,6 +1061,7 @@ async function doSignIn(){
   const pwd=(document.getElementById('sbPwd')||{}).value||'';
   const errEl=document.getElementById('sbError');
   if(!email||!pwd){if(errEl){errEl.style.display='block';errEl.textContent='Ingresá email y contraseña.';}return;}
+  // Login real contra Supabase (el modo demo de prueba fue removido para producción).
   try{
     await sbSignIn(email,pwd);
     updateAuthUI();
@@ -1054,7 +1211,15 @@ function colIdx(headers,name){const i=headers.findIndex(h=>cs(h).toLowerCase()==
 function parseXY(v){const s=cs(v);const m=s.match(/(-?\d+(?:[.,]\d+)?)\s*\/\s*(-?\d+(?:[.,]\d+)?)/);if(m)return{ent:cn(m[1]),ped:cn(m[2])};const n=cn(s);return{ent:n,ped:n};}
 // Busca una columna por coincidencia parcial (tolera acentos/recortes en encabezados).
 function colLike(h,sub){const s=sub.toLowerCase();const i=h.findIndex(x=>cs(x).toLowerCase().includes(s));return i>=0?i:null;}
-function parseTroncal(wb,dateStr){
+// CARGA MASIVA: detecta la columna de fecha real de cada fila (para fechar por día un archivo mensual).
+function bulkDateCol(h){
+  return colLike(h,'fecha de despacho')??colLike(h,'fecha despacho')??colLike(h,'fecha plan')
+    ??colLike(h,'fecha de entrega')??colLike(h,'fecha entrega')??colLike(h,'fecha de recep')
+    ??colLike(h,'fecha recep')??colLike(h,'fecha');
+}
+// Convierte una celda de fecha a ISO (YYYY-MM-DD); si no parsea, usa el fallback (fecha del nombre del archivo).
+function rowISO(cell,fallback){return dmyToIso(fmtDateCell(cell))||fallback;}
+function parseTroncal(wb,dateStr,bulk){
   const ws=wb.Sheets['DispatchTrack'];if(!ws)return[];
   const d=XLSX.utils.sheet_to_json(ws,{header:1,defval:''});
   const h=d[0];
@@ -1064,15 +1229,16 @@ function parseTroncal(wb,dateStr){
   const iTimMax=colIdx(h,'Tiempo max entrega')??19;
   const iRegion=colIdx(h,'Region')??21,iVol=colIdx(h,'Volumen')??30,iPeso=colIdx(h,'Peso')??31;
   const iCod=colIdx(h,'Código del producto'),iNom=colIdx(h,'Nombre del producto'),iCD=colIdx(h,'Cantidad despachada');
+  const iFecha=bulk?bulkDateCol(h):null;   // carga masiva: fecha por fila
   return d.slice(1).filter(r=>cs(r[iOrden])).map(r=>{const xy=parseXY(iCD!=null?r[iCD]:'');return{
     orden:cs(r[iOrden]),cliente:cs(r[iCliente])||'Canon',nodo:ncNode(r[iRegion]),
     fuente:'troncal',estado:normE(r[iEstado]),subestado:cs(r[iSub]),
     region:cs(r[iRegion]),volumen:cn(r[iVol]),peso:cn(r[iPeso]),
     codItem:iCod!=null?cs(r[iCod]):'',descItem:iNom!=null?cs(r[iNom]):'',ped:xy.ped,ent:xy.ent,
-    fechaMin:fmtDateCell(r[iTimMin]),fechaMax:fmtDateCell(r[iTimMax]),dateStr
+    fechaMin:fmtDateCell(r[iTimMin]),fechaMax:fmtDateCell(r[iTimMax]),dateStr:iFecha!=null?rowISO(r[iFecha],dateStr):dateStr
   };});
 }
-function parseUM(wb,dateStr){
+function parseUM(wb,dateStr,bulk){
   const ws=wb.Sheets['DispatchTrack'];if(!ws)return[];
   const d=XLSX.utils.sheet_to_json(ws,{header:1,defval:''});
   const h=d[0];
@@ -1080,19 +1246,21 @@ function parseUM(wb,dateStr){
   const iEstado=colIdx(h,'Estado')??6,iSub=colIdx(h,'Subestado')??7;
   const iRegion=colIdx(h,'Region')??22,iVol=colIdx(h,'Volumen')??31,iPeso=colIdx(h,'Peso')??32;
   const iCod=colIdx(h,'Código del producto'),iNom=colIdx(h,'Nombre del producto'),iCD=colIdx(h,'Cantidad despachada');
+  const iFecha=bulk?bulkDateCol(h):null;   // carga masiva: fecha por fila
   return d.slice(1).filter(r=>cs(r[iOrden]))
     .filter(r=>cs(r[iSub]).toLowerCase()!=='cargado troncal')
     .map(r=>{const xy=parseXY(iCD!=null?r[iCD]:'');return{
       orden:cs(r[iOrden]),cliente:cs(r[iCliente])||'Canon',nodo:ncNode(r[iRegion]),
       fuente:'um',estado:normE(r[iEstado]),subestado:cs(r[iSub]),
       region:cs(r[iRegion]),volumen:cn(r[iVol]),peso:cn(r[iPeso]),
-      codItem:iCod!=null?cs(r[iCod]):'',descItem:iNom!=null?cs(r[iNom]):'',ped:xy.ped,ent:xy.ent,dateStr
+      codItem:iCod!=null?cs(r[iCod]):'',descItem:iNom!=null?cs(r[iNom]):'',ped:xy.ped,ent:xy.ent,dateStr:iFecha!=null?rowISO(r[iFecha],dateStr):dateStr
     };});
 }
-function parseRosen(wb,dateStr){
+function parseRosen(wb,dateStr,bulk){
   const ws=wb.Sheets['PdE'];if(!ws)return[];
   const d=XLSX.utils.sheet_to_json(ws,{header:1,defval:''});
   const h=d[0];
+  const iFecha=bulk?bulkDateCol(h):null;   // carga masiva: fecha por fila (PdE → "Fecha Plan")
   const iOrden=colIdx(h,'Código de Orden')??8;
   const iCliente=colIdx(h,'Nombre Cliente')??10;
   const iGrupo=colIdx(h,'Grupo de Flota')??2;
@@ -1112,8 +1280,24 @@ function parseRosen(wb,dateStr){
     codItem:cs(r[iCodItem]),descItem:cs(r[iDescItem]),ped:cn(r[iUnidItem]),ent:cn(r[iEntItem]),
     estadoItem:iEstItem!=null?normE(r[iEstItem]):'',
     fechaMin:iFcMin!=null?fmtDateCell(r[iFcMin]):'',fechaMax:iFcMax!=null?fmtDateCell(r[iFcMax]):'',
-    dateStr
+    dateStr:iFecha!=null?rowISO(r[iFecha],dateStr):dateStr
   }));
+}
+// B11: lee la hoja "Reingreso" (= DEVOLUCIONES) de la Preliquidación Rosen → órdenes (F12) que VOLVIERON a bodega.
+// La hoja real tiene un título "DEVOLUCIONES" arriba, el encabezado ("Código de Orden") más abajo, y al final
+// una sección "Resumen" que NO se debe leer. Por eso: se busca la fila del encabezado y se corta al primer vacío / "Resumen".
+function parseReingreso(wb){
+  try{
+    const ws=rFindSheet(wb,['Reingreso','Reingresos','Devolución','Devolucion','Devoluciones']);
+    if(!ws||!ws['!ref'])return [];
+    const d=rAoa(ws); if(!d||!d.length)return [];
+    let hr=-1,iO=-1;   // localiza la fila del encabezado (no siempre es la 0)
+    for(let i=0;i<Math.min(d.length,15);i++){const j=rHidx(d[i]||[],'código de orden','codigo de orden','nro.f12','nro f12','f12','orden');if(j>=0){hr=i;iO=j;break;}}
+    if(hr<0)return [];
+    const set={};
+    for(let i=hr+1;i<d.length;i++){const r=d[i];const v=r?r[iO]:null;if(v==null||String(v).trim()==='')break;const o=String(v).trim();if(/^resumen/i.test(o))break;set[o]=1;}
+    return Object.keys(set);
+  }catch(e){return [];}
 }
 
 // ════════════════════════════════════════════
@@ -1134,6 +1318,41 @@ function onFile(e,t,el){
   const f=e.target.files[0];if(f)processFile(f,t,el);
 }
 
+// CARGA MASIVA (solo admin): lee un archivo de varios días / un mes y fecha CADA FILA por su columna de fecha
+// (no por el nombre del archivo), para que se separe por día. Coexiste con la carga diaria normal.
+function dzDropBulk(e,t,el){e.preventDefault();el.classList.remove('drag');if(!isAuthValid()||!esAdmin()){toast('🔒 Carga masiva: solo administrador','err');return;}const f=e.dataTransfer.files[0];if(f)processBulkFile(f,t,el);}
+function onFileBulk(e,t,el){if(!isAuthValid()||!esAdmin()){toast('🔒 Carga masiva: solo administrador','err');return;}const f=e.target.files[0];if(f)processBulkFile(f,t,el);e.target.value='';}
+function processBulkFile(file,type,el){
+  const reader=new FileReader();
+  reader.onload=function(e){
+    try{
+      const wb=XLSX.read(e.target.result,{type:'binary'});
+      const dateStr=exDate(file.name);
+      let rawRows=[];
+      if(type==='troncal')rawRows=parseTroncal(wb,dateStr,true);
+      else if(type==='um')rawRows=parseUM(wb,dateStr,true);
+      else rawRows=parseRosen(wb,dateStr,true);
+      if(!rawRows.length){toast('⚠️ No se encontraron datos en el archivo','err');return;}
+      const dias=[...new Set(rawRows.map(r=>r.dateStr))].filter(Boolean).sort();
+      const unDia=dias.length<=1;   // si no encontró columna de fecha por fila, quedó todo en un día → avisar
+      const dedupRows=dedup(rawRows);
+      const entry={id:uid(),name:file.name,type,dateStr,loadedAt:Date.now(),bulk:true,
+        totalRows:rawRows.length,uniqueOrders:dedupRows.length,rows:rawRows};
+      if(type==='rosen')entry.reingresoOrders=parseReingreso(wb);
+      const s=load();
+      s.files=s.files.filter(f=>f.name!==file.name);   // reemplaza si mismo nombre
+      s.files.push(entry);
+      save(s);
+      if(el)el.classList.add('loaded');
+      const st=document.getElementById('dst-bulk-'+type); if(st)st.textContent=`✓ ${fmtNum(rawRows.length)} filas · ${dias.length} día(s)`;
+      toast(unDia
+        ? `⚠️ Cargado, pero quedó en 1 solo día — no encontré columna de fecha por fila. Avisame el nombre de la columna de fecha.`
+        : `✓ Carga masiva: ${fmtNum(rawRows.length)} filas en ${dias.length} días (${fmtD(dias[0])} → ${fmtD(dias[dias.length-1])})`, unDia?'err':'');
+      rebuildAll();
+    }catch(err){toast('⚠️ Error: '+err.message,'err');}
+  };
+  reader.readAsBinaryString(file);
+}
 function processFile(file,type,el){
   const reader=new FileReader();
   reader.onload=function(e){
@@ -1150,6 +1369,7 @@ function processFile(file,type,el){
       // El conteo por orden se reconstruye al leer (dedup). Lo ya cargado en formato viejo sigue funcionando.
       const entry={id:uid(),name:file.name,type,dateStr,loadedAt:Date.now(),
         totalRows:rawRows.length,uniqueOrders:dedupRows.length,rows:rawRows};
+      if(type==='rosen')entry.reingresoOrders=parseReingreso(wb);   // B11: guarda las órdenes que volvieron (hoja "Reingreso")
       const s=load();
       // #4: si ya existe un archivo con el mismo nombre, o del mismo tipo+fecha, lo REEMPLAZA
       // (evita duplicar y que m³/peso se disparen al sumar las copias).
@@ -1173,7 +1393,13 @@ function processFile(file,type,el){
 // ════════════════════════════════════════════
 // GET DATA
 // ════════════════════════════════════════════
-function getRows(type){return load().files.filter(f=>f.type===type).flatMap(f=>f.rows);}
+// Cliente activo (gran pestaña): Canon = troncal+um · Rosen = rosen. Filtra TODAS las vistas en la raíz.
+const CLIENT_TIPOS={canon:['troncal','um'], rosen:['rosen']};
+let CLIENTE_SEL='canon';
+function getRows(type){
+  if(CLIENT_TIPOS[CLIENTE_SEL] && CLIENT_TIPOS[CLIENTE_SEL].indexOf(type)<0) return [];  // oculta el otro cliente
+  return load().files.filter(f=>f.type===type).flatMap(f=>f.rows);
+}
 // #15 v2: las correcciones manuales de estado se guardan como MOVIMIENTOS (no pisan la orden).
 // Cada cambio agrega una línea con la fecha de hoy y el nuevo estado → conserva la trazabilidad y,
 // por "el último estado manda" (#18), pasa a ser el estado vigente. Viven en MEM_STORE.manualMoves,
@@ -1191,6 +1417,12 @@ function getRecRows(){return dedup(getRows('troncal')).filter(r=>r.estado==='Ing
 function getDesRows(){return dedupDes([...getRows('um'),...getRows('rosen'),...manualMoveRows()]);}
 // Para el STOCK usamos SIEMPRE órdenes únicas (último estado), sin importar la vista de última milla.
 function getDesRowsUnique(){return dedup([...getRows('um'),...getRows('rosen'),...manualMoveRows()]);}
+// B11: conjunto de órdenes Rosen que VOLVIERON a bodega (hoja "Reingreso" de las Preliquidaciones cargadas).
+function rosenReingresoSet(){
+  const s=new Set();
+  load().files.filter(f=>f.type==='rosen').forEach(f=>(f.reingresoOrders||[]).forEach(o=>s.add(String(o).trim())));
+  return s;
+}
 function getAllRows(){
   const rec=dedup(getRows('troncal'));
   const des=dedupDes([...getRows('um'),...getRows('rosen'),...manualMoveRows()]);
@@ -1277,7 +1509,10 @@ function matchGF(r){
 // #25 Cascada Año → Mes → Fecha: al cambiar año/mes se acotan las opciones de mes y de fecha.
 function onAnioMesChange(){updateFechaOptions();applyFilters();}
 function updateFechaOptions(){
-  const dates=[...new Set(load().files.map(f=>f.dateStr))].filter(Boolean).sort();
+  // Fechas: de la carga normal = 1 fecha por archivo; de la carga masiva = las fechas reales de cada fila.
+  const _ds=new Set();
+  load().files.forEach(f=>{ if(f.bulk){(f.rows||[]).forEach(r=>{if(r.dateStr)_ds.add(r.dateStr);});} else if(f.dateStr)_ds.add(f.dateStr); });
+  const dates=[..._ds].filter(Boolean).sort();
   // Año
   const anios=[...new Set(dates.map(d=>d.slice(0,4)))].sort().reverse();
   const aSel=document.getElementById('fil-anio');
@@ -1319,6 +1554,9 @@ function renderSummaryCards(){
   const desAll=dedupDes([...getRows('um'),...getRows('rosen')]).filter(r=>matchGF(r));
   NODES.forEach(nodo=>{
     const el=document.getElementById(SC_CARDS[nodo]);
+    if(!el)return;
+    if(!esNodoDelCliente(nodo)){el.style.display='none';return;}   // oculta la tarjeta del otro cliente
+    el.style.display='';
     const hdr=el.querySelector('.sc-header').outerHTML;
     const recRows=recAll.filter(r=>r.nodo===nodo&&r.estado==='Ingresado al sistema');
     const desRows=desAll.filter(r=>r.nodo===nodo);
@@ -1455,6 +1693,9 @@ function renderDesNodesTable(desRows){
         <td class="num-cell">${fmtNum(vol,2)}</td>
         <td class="num-cell">${fmtNum(peso,1)}</td></tr>`;
     }).join('');
+  } else if(rBody){
+    // Sin recepción troncal (ej. cliente Rosen, que aún no tiene recepción) → limpiar, no dejar la de Canon pegada.
+    rBody.innerHTML='<tr><td colspan="6" style="text-align:center;padding:18px;color:#adb5bd">Sin recepción troncal para este cliente</td></tr>';
   }
   const rows=desRows.filter(matchGF);
   const dBody=document.getElementById('nt-des-body');
@@ -1470,7 +1711,7 @@ function renderDesNodesTable(desRows){
   //  - Resumen (nt-des-body): 6 col, SIN "Parciales".
   //  - Despacho (tbody-des-nodes): 7 col, CON "Parciales".
   // Antes ambas recibían 7 celdas → la del Resumen quedaba descuadrada. Ahora cada una recibe lo suyo.
-  const buildRows=(withPar)=>NODES.map(nodo=>{
+  const buildRows=(withPar)=>nodosCliente().map(nodo=>{
     const nr=rows.filter(r=>r.nodo===nodo);
     if(!nr.length)return`<tr><td class="node-name-cell">${nodo}</td><td colspan="${withPar?6:5}" style="color:#adb5bd;padding:14px 16px">Sin datos</td></tr>`;
     const total=nr.length;
@@ -1501,7 +1742,10 @@ function renderCharts(desRows){
   NODES.forEach(nodo=>{
     const{c,l}=cfgs[nodo];
     const canvas=document.getElementById(c),lEl=document.getElementById(l);
+    const card=canvas?canvas.closest('.chart-card'):null;
     if(charts[nodo]){charts[nodo].destroy();delete charts[nodo];}
+    if(!esNodoDelCliente(nodo)){if(card)card.style.display='none';return;}   // gráfico del otro cliente: oculto
+    if(card)card.style.display='';
     const rows=desRows.filter(r=>r.nodo===nodo&&matchGF(r));
     if(!rows.length){lEl.querySelector('.pct').textContent='—';return;}
     const total=rows.length;
@@ -1697,6 +1941,7 @@ function renderDesTable(){
 function editedMark(r){return r._edited?`<span class="edited-mark" title="Editado a mano${r._editBy?(' por '+r._editBy):''}">✎</span>`:'';}
 
 const ALL_CAP=1000; // tope de filas renderizadas para no trabar la pantalla
+let _allShown=[]; // B10: filas mostradas; el detalle por línea se arma SOLO al expandir (no congela)
 function renderAllTable(){
   const tbody=document.getElementById('tbody-all-orders');
   const cnt=document.getElementById('count-all');
@@ -1727,6 +1972,7 @@ function renderAllTable(){
   const shown=rows.slice(0,ALL_CAP);
   cnt.textContent=rows.length>ALL_CAP?`${fmtNum(ALL_CAP)} de ${fmtNum(rows.length)}`:fmtNum(rows.length)+' registros';
   const puedeEditar=isAuthValid();
+  _allShown=shown;   // B10: guardamos lo mostrado para construir el detalle por línea al vuelo
   tbody.innerHTML=shown.map((r,idx)=>{
     const lid='ld-all-'+idx;
     return `<tr>
@@ -1739,7 +1985,7 @@ function renderAllTable(){
     <td><span class="fecha-chip">${fmtD(r.dateStr)}</span></td>
     <td>${cm[r.orden]?`<span class="fecha-chip">${fmtD(cm[r.orden])}</span>`:'—'}</td>
     <td>${puedeEditar?`<button class="btn-edit" onclick="openEstadoEditor('${r.orden}','${r.estado}')">✎ Estado</button>`:'<span style="color:#cbd5e1">—</span>'}</td></tr>
-    <tr id="${lid}" class="node-detail-row"><td colspan="13"><div class="node-detail-inner">${lineDetailHTML(r)}</div></td></tr>`;
+    <tr id="${lid}" class="node-detail-row" data-idx="${idx}"><td colspan="13"><div class="node-detail-inner"></div></td></tr>`;
   }).join('')
     +(rows.length>ALL_CAP?`<tr><td colspan="13" style="text-align:center;padding:10px;color:#E0A800;font-weight:600">Mostrando ${fmtNum(ALL_CAP)} de ${fmtNum(rows.length)} — afiná el filtro para ver el resto</td></tr>`:'');
   updateBulkUI();const _ca=document.getElementById('chk-all');if(_ca)_ca.checked=false;
@@ -1762,6 +2008,11 @@ function lineDetailHTML(r){
 function toggleRow(id,btn){
   const row=document.getElementById(id);if(!row)return;
   const open=row.classList.toggle('open');
+  // B10: el detalle por línea se construye recién al abrir (y una sola vez) → no se traba al renderizar.
+  if(open){
+    const inner=row.querySelector('.node-detail-inner');
+    if(inner&&!inner.dataset.built){const idx=+row.dataset.idx;if(_allShown[idx])inner.innerHTML=lineDetailHTML(_allShown[idx]);inner.dataset.built='1';}
+  }
   if(btn)btn.textContent=open?'▾':'▸';
 }
 // ── Selección múltiple + cambio de estado MASIVO (Detalle Órdenes) ──
@@ -1843,19 +2094,23 @@ function srt(tbl,col){
 function renderFilesTable(){
   const s=load();
   const tbody=document.getElementById('files-tbody');
-  if(!s.files.length){tbody.innerHTML='<tr class="empty-files"><td colspan="7">Sin archivos cargados</td></tr>';return;}
-  tbody.innerHTML=s.files.slice().reverse().map(f=>`<tr>
+  const tipos=CLIENT_TIPOS[CLIENTE_SEL]||['troncal','um','rosen'];
+  const files=s.files.filter(f=>tipos.indexOf(f.type)>=0);   // solo archivos del cliente activo (Canon o Rosen)
+  if(!files.length){tbody.innerHTML='<tr class="empty-files"><td colspan="7">Sin archivos cargados</td></tr>';return;}
+  tbody.innerHTML=files.slice().reverse().map(f=>`<tr>
     <td>${badge(TIPO_LBL[f.type],TIPO_CSS[f.type])}</td>
     <td style="max-width:280px;overflow:hidden;text-overflow:ellipsis" title="${f.name}">${f.name}</td>
     <td>${fmtD(f.dateStr)}</td>
     <td style="text-align:right">${f.totalRows.toLocaleString('es-CL')}</td>
     <td style="text-align:right;font-weight:700">${f.uniqueOrders.toLocaleString('es-CL')}</td>
     <td style="color:#6c757d">${fmtTs(f.loadedAt)}</td>
-    <td><button class="btn btn-danger btn-sm" onclick="deleteFile('${f.id}')">Eliminar</button></td></tr>`).join('');
+    <td>${puedeSubir(f.type)?`<button class="btn btn-danger btn-sm" onclick="deleteFile('${f.id}')">Eliminar</button>`:'<span style="color:#adb5bd;font-size:12px">—</span>'}</td></tr>`).join('');
 }
 
 function deleteFile(id){
-  const s=load();s.files=s.files.filter(f=>f.id!==id);save(s);
+  const s=load();const f=s.files.find(x=>x.id===id);
+  if(f&&!puedeSubir(f.type)){toast('No tienes permiso para eliminar archivos de ese cliente','err');return;}   // un supervisor solo borra los de su cliente
+  s.files=s.files.filter(x=>x.id!==id);save(s);
   rebuildAll();toast('Archivo eliminado');
 }
 function confirmDeleteAll(){
@@ -1988,6 +2243,8 @@ function rebuildAll(){
   updateHeaderInfo();
   updateFechaOptions();
   updateCompromisoOptions();
+  if(typeof computeRosen==='function')computeRosen();   // B6/B11: refresca Recepción Rosen (incluye cambios manuales)
+  if(typeof renderStock==='function')renderStock();     // B12: refresca el módulo Stock unificado
 }
 
 // ════════════════════════════════════════════
@@ -1998,9 +2255,238 @@ function showTab(id,el){
   document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
   document.getElementById('tab-'+id).classList.add('active');
   if(el)el.classList.add('active');
-  document.getElementById('filter-bar').style.display=(id==='cargar')?'none':'flex';
+  document.getElementById('filter-bar').style.display=(id==='cargar'||id==='recrosen'||id==='stock')?'none':'flex';
+  if(id==='recrosen')renderRosen();
+  if(id==='stock')renderStock();
 }
 function switchToCargar(){showTab('cargar',document.getElementById('tab-btn-cargar'));}
+
+// Cambia la gran pestaña de cliente: filtra todas las vistas y ajusta qué pestañas se muestran.
+function setCliente(c){
+  CLIENTE_SEL=c;
+  const on='#fff', onb='2px solid '+(c==='rosen'?'#002E5D':'#FF6600');
+  const ca=document.getElementById('cl-canon'), ro=document.getElementById('cl-rosen');
+  if(ca){ca.style.borderBottom=c==='canon'?'3px solid #FF6600':'1px solid #e2e6ea'; ca.style.color=c==='canon'?'#FF6600':'#6c757d';}
+  if(ro){ro.style.borderBottom=c==='rosen'?'3px solid #002E5D':'1px solid #e2e6ea'; ro.style.color=c==='rosen'?'#002E5D':'#6c757d';}
+  // Canon: recepción por orden (troncal). Rosen: su recepción es "Recepción Rosen" (stock/cobertura).
+  const tRec=document.getElementById('tabbtn-recepcion'), tRR=document.getElementById('tabbtn-recrosen');
+  if(tRec)tRec.style.display=(c==='canon')?'':'none';
+  if(tRR)tRR.style.display=(c==='rosen')?'':'none';
+  aplicarPermisosRol();
+  aplicarFiltrosCliente();
+  rebuildAll();
+  if(typeof computeRosen==='function')computeRosen();
+  showTab('resumen',document.querySelector('.tabs-bar .tab'));
+}
+// Ajusta los filtros a la gran pestaña: oculta "Operación" (lo define el cliente) y deja solo los nodos del cliente.
+function aplicarFiltrosCliente(){
+  const og=document.getElementById('fil-operacion');
+  if(og){const grp=og.closest('.filter-group'); if(grp)grp.style.display='none';}
+  ['fil-nodo','fsel-rec-nodo','fsel-des-nodo','fsel-all-nodo'].forEach(id=>{
+    const sel=document.getElementById(id); if(!sel)return;
+    [...sel.options].forEach(o=>{ if(o.value)o.hidden=!esNodoDelCliente(o.value); });
+    if(sel.value && !esNodoDelCliente(sel.value))sel.value='';
+  });
+}
+
+// ════════════════════════════════════════════
+// MÓDULO RECEPCIÓN ROSEN (#31): recepción (Escenario) + receta (Componentes) + última milla (PdE)
+//   stock por SKU = recibido − demanda → cobertura de órdenes (listas / frenadas).
+// ════════════════════════════════════════════
+let ROSEN={rec:null,receta:null,um:null,ini:null,recFiles:{}}, ROSEN_M=null, ROSEN_VIEW={ords:[],sk:[]};
+const VOL_MAX_UNIT=5; // m³ por UNIDAD; sobre esto el volumen se trata como error de carga y se IGNORA en el m³ (no infla el total)
+const ROSEN_INI_KEY='portal.rosen.ini';
+function saveRosenIni(){try{if(ROSEN.ini)localStorage.setItem(ROSEN_INI_KEY,JSON.stringify(ROSEN.ini));}catch(e){}}
+function loadRosenIni(){try{const r=localStorage.getItem(ROSEN_INI_KEY);if(r)ROSEN.ini=JSON.parse(r);}catch(e){}}
+const rNsku=v=>{const s=String(v==null?'':v).replace(/\D/g,'').replace(/^0+/,'');return s||'0';};
+const rNum=v=>{const x=parseFloat(String(v==null?'':v).replace(',','.'));return isNaN(x)?0:x;};
+const rAoa=sh=>XLSX.utils.sheet_to_json(sh,{header:1,defval:null,blankrows:false});
+function rFindSheet(wb,names){for(const n of names)if(wb.Sheets[n])return wb.Sheets[n];for(const sn of wb.SheetNames){const l=sn.toLowerCase();if(names.some(n=>l.includes(n.toLowerCase())))return wb.Sheets[sn];}return null;}
+function rHidx(row,...names){const H=row.map(h=>String(h==null?'':h).trim().toLowerCase());for(const n of names){const i=H.indexOf(n.toLowerCase());if(i>=0)return i;}for(const n of names){const i=H.findIndex(h=>h.includes(n.toLowerCase()));if(i>=0)return i;}return -1;}
+// B3: detecta la hoja de recepción por ENCABEZADOS (no por nombre). Prefiere la rica (PABLO MILLON: trae 'fecha de recepción'); si no, Escenario; si no, la 1ª con SKU+cantidad.
+function rRecSheet(wb){
+  let best=null,bestScore=-1;
+  for(const sn of wb.SheetNames){
+    const ws=wb.Sheets[sn]; if(!ws||!ws['!ref'])continue; const d=rAoa(ws); if(!d.length)continue;
+    const iS=rHidx(d[0],'sku componente','sku'), iC=rHidx(d[0],'cantidad'); if(iS<0||iC<0)continue;
+    let score=10; if(rHidx(d[0],'fecha de recepción','fecha de recepcion')>=0)score+=100; if(sn.toLowerCase()==='escenario')score+=5;
+    if(score>bestScore){bestScore=score;best=d;}
+  }
+  return best;
+}
+function dzDropRosen(e,tipo){e.preventDefault();dzOut(e.currentTarget);const f=e.dataTransfer.files[0];if(f)leerRosen(f,tipo);}
+function onRosenFile(e,tipo){const f=e.target.files[0];if(f)leerRosen(f,tipo);e.target.value='';}
+function leerRosen(f,tipo){
+  const rd=new FileReader();
+  rd.onload=ev=>{try{
+    const wb=XLSX.read(ev.target.result,{type:'binary'});
+    if(tipo==='rec'){const d=rRecSheet(wb);if(!d)throw new Error('No encontré la hoja de recepción (con SKU componente y cantidad)');
+      const iS=rHidx(d[0],'sku componente','sku'),iD=rHidx(d[0],'descripcion','descripción'),iC=rHidx(d[0],'cantidad'),iV=rHidx(d[0],'volumen m3','volumen','m3');const rows=[];let nsusp=0;
+      for(let i=1;i<d.length;i++){const r=d[i];if(!r||r[iS]==null)continue;const cant=rNum(r[iC]);let vol=rNum(r[iV]),susp=false;if(vol/(cant||1)>VOL_MAX_UNIT){susp=true;nsusp++;vol=0;}rows.push({sku:rNsku(r[iS]),desc:String(r[iD]||''),cant,vol,susp});}   // guarda: volumen unitario absurdo → se ignora en m³
+      ROSEN.recFiles=ROSEN.recFiles||{}; ROSEN.recFiles[f.name]=rows; ROSEN.rec=[].concat(...Object.values(ROSEN.recFiles));   // suma varias recepciones (R1, R2…); mismo nombre reemplaza
+      mark('dst-rrec','dz-rrec'); toast('Recepción sumada: '+Object.keys(ROSEN.recFiles).length+' archivo(s), '+ROSEN.rec.length+' líneas'+(nsusp?' · ⚠ '+nsusp+' con volumen sospechoso (ignorado en m³)':''));}
+    else if(tipo==='receta'){const sh=rFindSheet(wb,['Rpt. HojasRutas','HojasRutas']);if(!sh)throw new Error('No encontré "Rpt. HojasRutas"');
+      const d=rAoa(sh),iO=rHidx(d[0],'nro.f12','orden'),iM=rHidx(d[0],'id material','material'),iN=rHidx(d[0],'descripción mat','descripcion mat'),iC=rHidx(d[0],'cantidad ruta','cantidad'),iCl=rHidx(d[0],'cliente'),iCom=rHidx(d[0],'comuna'),iV=rHidx(d[0],'volumen','m3');const rows=[];
+      for(let i=1;i<d.length;i++){const r=d[i];if(!r||r[iO]==null||r[iM]==null)continue;rows.push({orden:String(r[iO]).trim(),sku:rNsku(r[iM]),desc:String(r[iN]||''),cant:rNum(r[iC])||1,vol:rNum(r[iV]),cliente:String(r[iCl]||''),comuna:String(r[iCom]||'')});}ROSEN.receta=rows;mark('dst-rreceta','dz-rreceta');}
+    else if(tipo==='ini'){const d=rRecSheet(wb);if(!d)throw new Error('No encontré la hoja de recepción (con SKU componente y cantidad)');
+      const iS=rHidx(d[0],'sku componente','sku'),iD=rHidx(d[0],'descripcion','descripción'),iC=rHidx(d[0],'cantidad'),iV=rHidx(d[0],'volumen m3','volumen','m3');const ini={};
+      for(let i=1;i<d.length;i++){const r=d[i];if(!r||r[iS]==null)continue;const k=rNsku(r[iS]);const cant=rNum(r[iC]);let vol=rNum(r[iV]);if(vol/(cant||1)>VOL_MAX_UNIT)vol=0;ini[k]={desc:String(r[iD]||''),cant:(ini[k]?ini[k].cant:0)+cant,vol:(ini[k]?ini[k].vol:0)+vol};}   // guarda de volumen sospechoso
+      ROSEN.ini=ini;saveRosenIni();mark('dst-rini','dz-rini');toast('Stock inicial guardado: '+Object.keys(ini).length+' SKU');}
+    computeRosen();if(tipo!=='ini')toast('Rosen: archivo cargado');
+  }catch(err){toast('Error Rosen: '+err.message,'err');}};
+  rd.readAsBinaryString(f);
+}
+function mark(stId,dzId){const dz=document.getElementById(dzId);if(dz)dz.classList.add('loaded');}
+function computeRosen(){
+  // Base de stock: stock inicial O recepción del día. La receta/última milla son para el despacho (opcionales para solo ver inventario).
+  if(!(ROSEN.ini||ROSEN.rec)){ROSEN_M=null;renderRosen();return;}
+  const recibido={},descM={};
+  if(ROSEN.ini)Object.keys(ROSEN.ini).forEach(k=>{recibido[k]=(recibido[k]||0)+ROSEN.ini[k].cant;if(!descM[k]&&ROSEN.ini[k].desc)descM[k]=ROSEN.ini[k].desc;});   // stock inicial = base
+  if(ROSEN.rec)ROSEN.rec.forEach(r=>{recibido[r.sku]=(recibido[r.sku]||0)+r.cant;if(!descM[r.sku]&&r.desc)descM[r.sku]=r.desc;});   // + recepción del día
+  // Órdenes con sus componentes (sumados por SKU dentro de cada orden)
+  const ordenes={};
+  (ROSEN.receta||[]).forEach(r=>{if(!descM[r.sku]&&r.desc)descM[r.sku]=r.desc;const o=ordenes[r.orden]||(ordenes[r.orden]={orden:r.orden,cliente:r.cliente,comuna:r.comuna,comps:{}});o.comps[r.sku]=(o.comps[r.sku]||0)+r.cant;});
+  // B2: la última milla = lo que salió a despacho, tomado de la carga de despacho Rosen ya existente (Preliquidación). No hay carga aparte.
+  const um={}; getRows('rosen').forEach(r=>{if(r.orden!=null)um[String(r.orden).trim()]=r.estado;});
+  const tieneUM=Object.keys(um).length>0;
+  // Estado VIGENTE por orden (incluye correcciones manuales #15/B6: Devuelto / Extraviado, etc.).
+  const estadoOrden={}; getDesRowsUnique().forEach(r=>{if(r.orden!=null)estadoOrden[String(r.orden).trim()]=r.estado;});
+  const reingSet=rosenReingresoSet();   // B11: órdenes que VOLVIERON a bodega
+  const esCerrada=o=>['Devuelto al mandante','Extraviado'].indexOf(estadoOrden[o])>=0;  // salieron del sistema → NO vuelven al stock
+  // B4: el descuento lo manda la ÚLTIMA MILLA. Sin ella, NO se descuenta nada (la receta sola no mueve stock).
+  const salio=o=>tieneUM && (um[o.orden]!==undefined);
+  // B11: la orden que volvió (y NO se cerró como Devuelto/Extraviado) re-descompone su receta → sus componentes VUELVEN al stock.
+  const volvio=o=>reingSet.has(o.orden) && !esCerrada(o.orden);
+  const consumido={}, reincorp={}, pedidos=[];
+  let nSalio=0, nVolvio=0, nCerr=0;
+  Object.values(ordenes).forEach(o=>{
+    const sal=salio(o), vol=volvio(o), cer=esCerrada(o.orden);
+    if(sal){for(const sku in o.comps)consumido[sku]=(consumido[sku]||0)+o.comps[sku];}        // salió a ruta → consume
+    if(vol){for(const sku in o.comps)reincorp[sku]=(reincorp[sku]||0)+o.comps[sku];}           // volvió → reincorpora
+    // tipo: cerrada (Dev/Extrav) · volvio (regresó a bodega) · salio (afuera) · bodega (nunca salió)
+    const tipo=cer?'cerrada':vol?'volvio':sal?'salio':'bodega';
+    if(tipo==='salio')nSalio++; if(tipo==='cerrada')nCerr++; if(tipo==='volvio')nVolvio++;
+    pedidos.push({orden:o.orden,cliente:o.cliente,comuna:o.comuna,tipo,
+      salio:tipo==='salio', enBodega:(tipo==='bodega'||tipo==='volvio'), estado:estadoOrden[o.orden]||'',
+      nsku:Object.keys(o.comps).length,
+      comps:Object.entries(o.comps).map(([sku,cant])=>({sku,cant,desc:descM[sku]||''}))});   // detalle de componentes para el drill-down (B8)
+  });
+  const pendientes=pedidos.filter(p=>p.enBodega);   // "en bodega" = nunca salió + volvió y no se cerró
+  const skus=new Set([...Object.keys(recibido),...Object.keys(consumido),...Object.keys(reincorp)]);
+  const stock=[]; let descuadres=0, ensk=0;
+  // B11: queda = recibido − (consumido − reincorporado). Lo que volvió neutraliza su consumo.
+  skus.forEach(k=>{const rec=recibido[k]||0,des=(consumido[k]||0)-(reincorp[k]||0),queda=rec-des;if(queda<0)descuadres++;if(queda>0)ensk++;stock.push({sku:k,desc:descM[k]||'',rec,des,reing:reincorp[k]||0,queda});});
+  // B7: m³ recibido (stock inicial + recepciones) vs m³ consumido NETO (componentes de lo que salió a ruta y NO volvió)
+  let recM3=0; if(ROSEN.ini)Object.values(ROSEN.ini).forEach(x=>recM3+=x.vol||0); if(ROSEN.rec)ROSEN.rec.forEach(r=>recM3+=r.vol||0);
+  let consM3=0; (ROSEN.receta||[]).forEach(r=>{const o=r.orden; if(tieneUM&&um[o]!==undefined && !(reingSet.has(o)&&!esCerrada(o)))consM3+=r.vol||0;});
+  const nVolSusp=(ROSEN.rec||[]).filter(r=>r.susp).length;   // filas con volumen unitario absurdo (ignoradas en m³)
+  ROSEN_M={stock,pendientes,pedidos,tieneUM,reingSet,
+    nRecSku:Object.keys(recibido).length, recU:Object.values(recibido).reduce((a,b)=>a+b,0),
+    nOrd:Object.keys(ordenes).length, nSalio, nVolvio, nCerr, nPend:pendientes.length, descuadres, enStock:ensk, recM3, consM3, nVolSusp};
+  renderRosen();
+}
+function renderRosen(){
+  const empty=document.getElementById('rosen-empty'),cont=document.getElementById('rosen-content');
+  if(!ROSEN_M){if(empty)empty.style.display='';if(cont)cont.style.display='none';return;}
+  if(empty)empty.style.display='none';if(cont)cont.style.display='block';
+  const M=ROSEN_M;
+  document.getElementById('rosen-kpis').innerHTML=[
+    ['',M.nRecSku,'SKU recibidos',M.recU.toFixed(0)+' u · '+M.recM3.toFixed(1)+' m³'],
+    ['#0F6E56',M.nSalio,'Órdenes que salieron',M.consM3.toFixed(1)+' m³ consumidos (neto)'],
+    ['#7d3c98',M.nVolvio||0,'Reingresos (volvieron)','Sus componentes vuelven al stock'],
+    ['#FF6600',M.nPend,'Pendientes en bodega','Nunca salieron + volvieron'],
+    ['#002E5D',M.enStock,'SKU en stock','Saldo a favor (bodega)'],
+    ['#C62828',M.descuadres,'SKU negativos','Saldo negativo · revisar']
+  ].map(k=>`<div class="summary-card" style="border-left-color:${k[0]||'#002E5D'}"><div style="font-size:11px;color:#6c757d;text-transform:uppercase;letter-spacing:.04em">${k[2]}</div><div style="font-size:24px;font-weight:800;margin-top:4px">${k[1]}</div><div style="font-size:11px;color:#6c757d;margin-top:4px">${k[3]}</div></div>`).join('');
+  document.getElementById('rosen-note').innerHTML=M.tieneUM
+    ?`Cuadre del día: salieron <b>${M.nSalio}</b> órdenes, volvieron <b>${M.nVolvio||0}</b> (reingreso), quedaron <b>${M.nPend}</b> en bodega${M.nCerr?`, cerradas <b>${M.nCerr}</b> (Devuelto/Extraviado)`:''}. Stock = recibido − (lo que salió − lo que volvió). <i>Si queda negativo, hay descuadre (salió más de lo recibido) → revisar.</i>`
+    :`⚠ Falta la <b>última milla (PdE)</b> (la Preliquidación de Despacho) para cuadrar. Sin ella no se descuenta nada: el stock = todo lo recibido y todos los pedidos quedan en bodega.`;
+  if(M.nVolSusp){document.getElementById('rosen-note').innerHTML+=`<br><span style="color:#C62828">⚠ ${M.nVolSusp} fila(s) de recepción con <b>volumen sospechoso</b> (> ${VOL_MAX_UNIT} m³/unidad) — se ignoraron en el m³ para no inflar el total. Revisar esos SKU en el origen.</span>`;}
+  // Tabla 1: PEDIDOS (F12) con estado + drill-down de componentes (B8)
+  const fO=document.getElementById('rosen-fOrd').value, qO=document.getElementById('rosen-qOrd').value.trim().toLowerCase();
+  let peds=M.pedidos.filter(o=> fO===''
+    || (fO==='pend'&&o.enBodega)
+    || (fO==='salio'&&o.tipo==='salio')
+    || (fO==='volvio'&&o.tipo==='volvio')
+    || (fO==='cerrada'&&o.tipo==='cerrada'));
+  if(qO)peds=peds.filter(o=>(o.orden+' '+o.cliente+' '+o.comuna).toLowerCase().includes(qO));
+  const _trk={bodega:0,volvio:1,salio:2,cerrada:3};
+  peds.sort((a,b)=>((_trk[a.tipo]||0)-(_trk[b.tipo]||0))||a.orden.localeCompare(b.orden));
+  const _pBadge=o=>{const m={bodega:['#fff3e8','#FF6600','En bodega'],volvio:['#f3e8fb','#7d3c98','Volvió a bodega'],salio:['#e7f5ea','#0F6E56','Salió'],cerrada:['#fdeaea','#C62828',(o.estado||'Cerrada')]};const x=m[o.tipo]||m.bodega;return `<span class="badge" style="background:${x[0]};color:${x[1]}">${x[2]}</span>`;};
+  const _puedeEd=isAuthValid();   // B6: cambio de estado en Recepción Rosen (solo logueado)
+  let phtml='';
+  peds.forEach((o,i)=>{
+    const det=o.comps.map(c=>`<tr><td class="order-id">${c.sku}</td><td>${c.desc}</td><td style="text-align:right">${c.cant}</td></tr>`).join('');
+    phtml+=`<tr style="cursor:pointer" onclick="rToggle('rdet-${i}',this)"><td><span class="rtw" style="color:#6c757d">▸</span> <span class="order-id">${o.orden}</span></td><td>${o.cliente}</td><td>${o.comuna}</td><td style="text-align:right">${o.nsku}</td><td>${_pBadge(o)}</td><td onclick="event.stopPropagation()">${_puedeEd?`<button class="btn-edit" onclick="openEstadoEditor('${o.orden}','${o.estado||''}')">✎ Estado</button>`:'<span style="color:#cbd5e1">—</span>'}</td></tr>`
+      +`<tr id="rdet-${i}" style="display:none"><td colspan="6" style="background:#fafbfc;padding:8px 14px"><table style="width:100%;font-size:12px"><thead><tr><th style="text-align:left">SKU</th><th style="text-align:left">Componente</th><th style="text-align:right">Cant.</th></tr></thead><tbody>${det}</tbody></table></td></tr>`;
+  });
+  document.getElementById('rosen-tOrd').innerHTML=`<thead><tr><th>Orden (F12)</th><th>Cliente</th><th>Comuna</th><th style="text-align:right">N° comp.</th><th>Estado</th><th>Acción</th></tr></thead><tbody>`+(peds.length?phtml:`<tr><td colspan="6" style="padding:24px;text-align:center;color:#6c757d">Sin pedidos.</td></tr>`)+`</tbody>`;
+  // Tabla 2: inventario por SKU (recibido vs despachado → queda)
+  const fS=document.getElementById('rosen-fSku').value,qS=document.getElementById('rosen-qSku').value.trim().toLowerCase();
+  let sk=M.stock.filter(s=>fS===''||(fS==='corto'&&s.queda<0)||(fS==='inv'&&s.queda>0)||(fS==='cero'&&s.queda===0));if(qS)sk=sk.filter(s=>(s.sku+' '+s.desc).toLowerCase().includes(qS));sk.sort((a,b)=>a.queda-b.queda);
+  ROSEN_VIEW={peds:peds,sk:sk};   // guarda lo filtrado para exportar a Excel
+  const estS=q=>q<0?{t:'Descuadre',bg:'#fdeaea',c:'#C62828'}:q>0?{t:'Sobrante',bg:'#fff3e8',c:'#FF6600'}:{t:'OK (cuadrado)',bg:'#e7f5ea',c:'#0F6E56'};
+  document.getElementById('rosen-tSku').innerHTML=`<thead><tr><th>SKU</th><th>Descripción</th><th style="text-align:right">Recibido</th><th style="text-align:right">Despachado</th><th style="text-align:right">Queda</th><th>Estado</th></tr></thead><tbody>`+(sk.length?sk.map(s=>{const e=estS(s.queda);return `<tr><td class="order-id">${s.sku}</td><td>${s.desc}</td><td style="text-align:right">${s.rec.toFixed(0)}</td><td style="text-align:right">${s.des.toFixed(0)}</td><td style="text-align:right;font-weight:700;color:${e.c}">${s.queda.toFixed(0)}</td><td><span class="badge" style="background:${e.bg};color:${e.c}">${e.t}</span></td></tr>`;}).join(''):`<tr><td colspan="6" style="padding:24px;text-align:center;color:#6c757d">Sin SKU.</td></tr>`)+`</tbody>`;
+}
+
+// B12: módulo STOCK unificado — todo el stock en un solo lugar, buscable por SKU u orden.
+//   Rosen: pedidos en bodega (nunca salió + volvió) + inventario por SKU. Canon: órdenes en stock.
+function renderStock(){
+  const host=document.getElementById('stock-body'); if(!host)return;
+  const q=((document.getElementById('stock-q')||{}).value||'').trim().toLowerCase();
+  const sub=document.getElementById('stock-sub');
+  if(CLIENTE_SEL==='rosen'){
+    if(sub)sub.textContent='Rosen: pedidos en bodega (nunca salieron + volvieron) e inventario por SKU.';
+    const M=ROSEN_M;
+    if(!M){host.innerHTML='<div style="padding:42px;text-align:center;color:#6c757d">Cargá la <b>recepción</b> y la <b>receta</b> de Rosen (en Cargar Archivos) para ver el stock.</div>';return;}
+    let ped=M.pedidos.filter(p=>p.enBodega);
+    if(q)ped=ped.filter(p=>(p.orden+' '+(p.cliente||'')+' '+(p.comuna||'')+' '+p.comps.map(c=>c.sku).join(' ')).toLowerCase().includes(q));
+    ped.sort((a,b)=>a.orden.localeCompare(b.orden));
+    let sk=M.stock.filter(s=>s.queda!==0);
+    if(q)sk=sk.filter(s=>(s.sku+' '+(s.desc||'')).toLowerCase().includes(q));
+    sk.sort((a,b)=>b.queda-a.queda);
+    const _b=o=>o.tipo==='volvio'?'<span class="badge" style="background:#f3e8fb;color:#7d3c98">Volvió a bodega</span>':'<span class="badge" style="background:#fff3e8;color:#FF6600">En bodega</span>';
+    const pedH=ped.length?ped.map(o=>`<tr><td class="order-id">${o.orden}</td><td>${o.cliente||'—'}</td><td>${o.comuna||'—'}</td><td style="text-align:right">${o.nsku}</td><td>${_b(o)}</td></tr>`).join(''):`<tr><td colspan="5" style="padding:20px;text-align:center;color:#6c757d">Sin pedidos en bodega.</td></tr>`;
+    const estS=v=>v<0?['#fdeaea','#C62828','Descuadre']:v>0?['#fff3e8','#FF6600','Sobrante']:['#e7f5ea','#0F6E56','OK'];
+    const skH=sk.length?sk.map(s=>{const e=estS(s.queda);return `<tr><td class="order-id">${s.sku}</td><td>${s.desc||'—'}</td><td style="text-align:right">${s.rec.toFixed(0)}</td><td style="text-align:right">${s.des.toFixed(0)}</td><td style="text-align:right;font-weight:700;color:${e[1]}">${s.queda.toFixed(0)}</td><td><span class="badge" style="background:${e[0]};color:${e[1]}">${e[2]}</span></td></tr>`;}).join(''):`<tr><td colspan="6" style="padding:20px;text-align:center;color:#6c757d">Sin SKU con saldo.</td></tr>`;
+    host.innerHTML=`<div class="panel" style="margin-bottom:18px"><div style="padding:12px 16px;border-bottom:1px solid #e2e6ea"><strong style="font-size:14px">Pedidos en bodega (${ped.length})</strong></div><div class="table-scroll"><table><thead><tr><th>Orden (F12)</th><th>Cliente</th><th>Comuna</th><th style="text-align:right">N° comp.</th><th>Estado</th></tr></thead><tbody>${pedH}</tbody></table></div></div>`
+      +`<div class="panel"><div style="padding:12px 16px;border-bottom:1px solid #e2e6ea"><strong style="font-size:14px">Inventario por SKU (${sk.length})</strong></div><div class="table-scroll"><table><thead><tr><th>SKU</th><th>Descripción</th><th style="text-align:right">Recibido</th><th style="text-align:right">Despachado neto</th><th style="text-align:right">Queda</th><th>Estado</th></tr></thead><tbody>${skH}</tbody></table></div></div>`;
+  } else {
+    if(sub)sub.textContent='Canon: órdenes en stock (recibidas que no salieron + las que volvieron como No entregado).';
+    const ss=getStockSets(), cm=getCompromisoMap(), hoy=todayLocal();
+    const recByOrden={}; getRecRows().forEach(r=>{if(!recByOrden[r.orden])recByOrden[r.orden]=r;});
+    let list=[...ss.enStock].map(o=>({orden:o,tipo:'Nunca salió'})).concat([...ss.enStockUM].map(o=>({orden:o,tipo:'Volvió (No entregado)'})));
+    list.forEach(x=>{const r=recByOrden[x.orden]||{};x.cliente=r.cliente||'';x.nodo=r.nodo||'';x.region=r.region||'';x.comp=cm[x.orden]||'';x.venc=!!(x.comp&&x.comp<hoy);});
+    if(q)list=list.filter(x=>(x.orden+' '+x.cliente+' '+x.region).toLowerCase().includes(q));
+    list.sort((a,b)=>(b.venc-a.venc)||a.orden.localeCompare(b.orden));
+    const rowsH=list.length?list.map(x=>`<tr><td class="order-id">${x.orden}</td><td>${x.cliente||'—'}</td><td>${nodoBadge(x.nodo)}</td><td><span class="badge" style="background:${x.tipo[0]==='V'?'#f3e8fb':'#fff3e8'};color:${x.tipo[0]==='V'?'#7d3c98':'#FF6600'}">${x.tipo}</span></td><td>${x.comp?`<span class="fecha-chip">${fmtD(x.comp)}</span>`:'—'}</td><td>${x.venc?'<span class="badge" style="background:#fdeaea;color:#C62828">Vencido</span>':'—'}</td></tr>`).join(''):`<tr><td colspan="6" style="padding:24px;text-align:center;color:#6c757d">Sin órdenes en stock.</td></tr>`;
+    host.innerHTML=`<div class="panel"><div style="padding:12px 16px;border-bottom:1px solid #e2e6ea;display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px"><strong style="font-size:14px">Órdenes en stock (${list.length})</strong><span style="font-size:12px;color:#6c757d">Vencido = su fecha de compromiso ya pasó</span></div><div class="table-scroll"><table><thead><tr><th>Orden</th><th>Cliente</th><th>Nodo</th><th>Tipo</th><th>Compromiso</th><th>Estado</th></tr></thead><tbody>${rowsH}</tbody></table></div></div>`;
+  }
+}
+
+// Exportar a Excel lo que está filtrado en pantalla (inventario / cobertura Rosen).
+function _hoyStr(){const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
+function _bajarXlsx(aoa,hoja,nombre){
+  const ws=XLSX.utils.aoa_to_sheet(aoa),wb=XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb,ws,hoja);XLSX.writeFile(wb,nombre);
+}
+function exportRosenStock(){
+  const sk=(ROSEN_VIEW&&ROSEN_VIEW.sk)||[];
+  if(!sk.length){toast('No hay inventario para exportar',1);return;}
+  const aoa=[['SKU','Descripción','Recibido','Despachado','Queda (inventario)','Estado']];
+  sk.forEach(s=>aoa.push([String(s.sku),s.desc,s.rec,s.des,s.queda,s.queda<0?'Descuadre':s.queda>0?'Sobrante':'OK (cuadrado)']));
+  _bajarXlsx(aoa,'Inventario Rosen','Inventario_Rosen_'+_hoyStr()+'.xlsx');
+  toast('Inventario exportado a Excel');
+}
+function exportRosenCob(){
+  const peds=(ROSEN_VIEW&&ROSEN_VIEW.peds)||[];
+  if(!peds.length){toast('No hay pedidos para exportar',1);return;}
+  const aoa=[['Orden','Cliente','Comuna','Estado','N° componentes','SKU que requiere']];
+  peds.forEach(o=>aoa.push([String(o.orden),o.cliente,o.comuna,o.salio?'Salió':'En bodega',o.nsku,o.comps.map(c=>c.sku).join(' ')]));
+  _bajarXlsx(aoa,'Pedidos Rosen','Pedidos_Rosen_'+_hoyStr()+'.xlsx');
+  toast('Pedidos exportados a Excel');
+}
+function rToggle(id,row){const r=document.getElementById(id);if(!r)return;const open=r.style.display==='none';r.style.display=open?'':'none';const tw=row&&row.querySelector('.rtw');if(tw)tw.textContent=open?'▾':'▸';}
 
 // ════════════════════════════════════════════
 // TOAST / DIALOG
@@ -2031,11 +2517,13 @@ function closeDlg(id){document.getElementById(id).classList.remove('show');}
     if(saved&&Array.isArray(saved.files))MEM_STORE=saved;
     const rawSession=localStorage.getItem(SB_SESSION_KEY);
     if(rawSession)SUPABASE_SESSION=JSON.parse(rawSession);
+    loadRosenIni();   // stock inicial Rosen persistido
   }catch(e){LS_AVAILABLE=false;}
   const d=new Date();
   const navEl=document.getElementById('nav-date');
   if(navEl)navEl.innerHTML='<span>'+d.toLocaleDateString('es-CL',{weekday:'long',day:'2-digit',month:'long'})+'</span>';
   updateAuthUI();
+  setCliente((isAuthValid()&&rolActual().cliente!=='todos')?rolActual().cliente:'canon');   // supervisor arranca en su cliente; resto en Canon
   // Refresca el token si está vencido (corrige el falso "Sesión activa") y luego sincroniza.
   ensureValidSession().then(()=>{
     updateAuthUI();
@@ -2053,4 +2541,4 @@ function closeDlg(id){document.getElementById(id).classList.remove('show');}
 })();
 </script>
 </body>
-</html>
+</html>                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 
