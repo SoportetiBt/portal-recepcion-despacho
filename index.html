@@ -6,6 +6,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:ital,wght@1,800;1,900&display=swap" rel="stylesheet">
 <title>Torre de Control — Recepción y Despacho · BigTicket</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/lz-string/1.5.0/lz-string.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
@@ -831,6 +832,13 @@ table.files-table tr:last-child td{border-bottom:none}
 const SK = 'bt_recdes_v6';
 let MEM_STORE = {files:[]};
 let LS_AVAILABLE = false;
+// ── Almacenamiento COMPRIMIDO (lz-string) para que quepan varios meses (evita el tope ~5 MB de localStorage
+//    y aligera el snapshot de Supabase). Lectura compatible con datos guardados SIN comprimir. ──
+const _hasLZ=()=>typeof LZString!=='undefined';
+function packLocal(s){const j=JSON.stringify(s);return _hasLZ()?('LZ1|'+LZString.compressToUTF16(j)):j;}
+function unpackLocal(raw){if(raw==null)return null;if(typeof raw==='string'&&raw.slice(0,4)==='LZ1|'){if(!_hasLZ())return null;const j=LZString.decompressFromUTF16(raw.slice(4));return j?JSON.parse(j):null;}return JSON.parse(raw);}   // sin prefijo = formato viejo (JSON plano)
+function packCloud(s){const j=JSON.stringify(s);return _hasLZ()?{z:LZString.compressToBase64(j)}:{recepcion_despacho:s};}
+function unpackCloud(data){if(!data)return null;if(data.z){if(!_hasLZ())return null;const j=LZString.decompressFromBase64(data.z);return j?JSON.parse(j):null;}return data.recepcion_despacho||null;}   // .z = comprimido; recepcion_despacho = formato viejo
 
 // ── SUPABASE ──────────────────────────────────
 const SUPABASE_URL = 'https://uxyxdfbmfviofwdxmqsq.supabase.co';
@@ -930,7 +938,7 @@ async function saveSnapshot(data,updatedAt){
     toast('⚠️ Tu sesión venció. Los datos NO se guardaron en la nube — iniciá sesión de nuevo.','err');
     return false;
   }
-  const body=JSON.stringify({data,updated_by:currentUser(),updated_at:updatedAt||new Date().toISOString()});
+  const body=JSON.stringify({data:packCloud(data),updated_by:currentUser(),updated_at:updatedAt||new Date().toISOString()});
   const doPatch=()=>fetch(`${SUPABASE_URL}/rest/v1/portal_recepcion_snapshot?id=eq.1`,{
     method:'PATCH',headers:{...sbHeaders(true),'Prefer':'return=minimal'},body
   });
@@ -980,19 +988,20 @@ function load(){return MEM_STORE;}
 function save(s){
   s.updatedAt=new Date().toISOString();   // marca de tiempo para resolver nube vs local
   MEM_STORE=s;
-  if(LS_AVAILABLE){try{localStorage.setItem(SK,JSON.stringify(s));}catch(e){}}
-  if(isAuth()&&SUPABASE_SESSION.access_token!=='DEMO-LOCAL')saveSnapshot({recepcion_despacho:s},s.updatedAt).catch(e=>console.warn('Supabase save:',e));
+  if(LS_AVAILABLE){try{localStorage.setItem(SK,packLocal(s));}catch(e){toast('⚠️ Este equipo no pudo guardar localmente (memoria del navegador llena). Si estás con sesión, igual se guarda en la nube; si no, evita cargar tantos meses de una vez.','err');}}
+  if(isAuth()&&SUPABASE_SESSION.access_token!=='DEMO-LOCAL')saveSnapshot(s,s.updatedAt).catch(e=>console.warn('Supabase save:',e));
 }
 // Decide si aplicar el snapshot de la nube o conservar lo local.
 // NO pisa datos locales más nuevos con una versión más vieja de la nube. Devuelve 'cloud' | 'local'.
 function applyCloudSnapshot(snap){
-  const hasCloud=snap&&snap.data&&snap.data.recepcion_despacho&&Array.isArray(snap.data.recepcion_despacho.files);
+  const rd=snap&&snap.data?unpackCloud(snap.data):null;   // soporta formato comprimido (.z) y el viejo (recepcion_despacho)
+  const hasCloud=rd&&Array.isArray(rd.files);
   if(!hasCloud)return 'local';
   const localHas=MEM_STORE&&Array.isArray(MEM_STORE.files)&&MEM_STORE.files.length>0;
   const localTime=(MEM_STORE&&MEM_STORE.updatedAt)?Date.parse(MEM_STORE.updatedAt):0;
   const cloudTime=snap.updatedAt?Date.parse(snap.updatedAt):0;
   if(localHas&&localTime>cloudTime)return 'local';   // local más nuevo → no pisar
-  MEM_STORE=snap.data.recepcion_despacho;
+  MEM_STORE=rd;
   return 'cloud';
 }
 
@@ -2513,7 +2522,7 @@ function closeDlg(id){document.getElementById(id).classList.remove('show');}
     localStorage.setItem('__bt_test__','1');
     localStorage.removeItem('__bt_test__');
     LS_AVAILABLE=true;
-    const saved=JSON.parse(localStorage.getItem(SK)||'null');
+    const saved=unpackLocal(localStorage.getItem(SK));   // soporta comprimido (LZ1|) y JSON plano viejo
     if(saved&&Array.isArray(saved.files))MEM_STORE=saved;
     const rawSession=localStorage.getItem(SB_SESSION_KEY);
     if(rawSession)SUPABASE_SESSION=JSON.parse(rawSession);
@@ -2541,4 +2550,4 @@ function closeDlg(id){document.getElementById(id).classList.remove('show');}
 })();
 </script>
 </body>
-</html>                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 
+</html>
