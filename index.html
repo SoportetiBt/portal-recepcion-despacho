@@ -1238,11 +1238,12 @@ function parseTroncal(wb,dateStr,bulk){
   const iTimMax=colIdx(h,'Tiempo max entrega')??19;
   const iRegion=colIdx(h,'Region')??21,iVol=colIdx(h,'Volumen')??30,iPeso=colIdx(h,'Peso')??31;
   const iCod=colIdx(h,'Código del producto'),iNom=colIdx(h,'Nombre del producto'),iCD=colIdx(h,'Cantidad despachada');
+  const iDir=colLike(h,'direcci'),iCom=colLike(h,'comuna');   // dirección + comuna (para reportes/export JSON)
   const iFecha=bulk?bulkDateCol(h):null;   // carga masiva: fecha por fila
   return d.slice(1).filter(r=>cs(r[iOrden])).map(r=>{const xy=parseXY(iCD!=null?r[iCD]:'');return{
     orden:cs(r[iOrden]),cliente:cs(r[iCliente])||'Canon',nodo:ncNode(r[iRegion]),
     fuente:'troncal',estado:normE(r[iEstado]),subestado:cs(r[iSub]),
-    region:cs(r[iRegion]),volumen:cn(r[iVol]),peso:cn(r[iPeso]),
+    region:cs(r[iRegion]),direccion:iDir!=null?cs(r[iDir]):'',comuna:iCom!=null?cs(r[iCom]):'',volumen:cn(r[iVol]),peso:cn(r[iPeso]),
     codItem:iCod!=null?cs(r[iCod]):'',descItem:iNom!=null?cs(r[iNom]):'',ped:xy.ped,ent:xy.ent,
     fechaMin:fmtDateCell(r[iTimMin]),fechaMax:fmtDateCell(r[iTimMax]),dateStr:iFecha!=null?rowISO(r[iFecha],dateStr):dateStr
   };});
@@ -1255,13 +1256,14 @@ function parseUM(wb,dateStr,bulk){
   const iEstado=colIdx(h,'Estado')??6,iSub=colIdx(h,'Subestado')??7;
   const iRegion=colIdx(h,'Region')??22,iVol=colIdx(h,'Volumen')??31,iPeso=colIdx(h,'Peso')??32;
   const iCod=colIdx(h,'Código del producto'),iNom=colIdx(h,'Nombre del producto'),iCD=colIdx(h,'Cantidad despachada');
+  const iDir=colLike(h,'direcci'),iCom=colLike(h,'comuna');   // dirección + comuna (para reportes/export JSON)
   const iFecha=bulk?bulkDateCol(h):null;   // carga masiva: fecha por fila
   return d.slice(1).filter(r=>cs(r[iOrden]))
     .filter(r=>cs(r[iSub]).toLowerCase()!=='cargado troncal')
     .map(r=>{const xy=parseXY(iCD!=null?r[iCD]:'');return{
       orden:cs(r[iOrden]),cliente:cs(r[iCliente])||'Canon',nodo:ncNode(r[iRegion]),
       fuente:'um',estado:normE(r[iEstado]),subestado:cs(r[iSub]),
-      region:cs(r[iRegion]),volumen:cn(r[iVol]),peso:cn(r[iPeso]),
+      region:cs(r[iRegion]),direccion:iDir!=null?cs(r[iDir]):'',comuna:iCom!=null?cs(r[iCom]):'',volumen:cn(r[iVol]),peso:cn(r[iPeso]),
       codItem:iCod!=null?cs(r[iCod]):'',descItem:iNom!=null?cs(r[iNom]):'',ped:xy.ped,ent:xy.ent,dateStr:iFecha!=null?rowISO(r[iFecha],dateStr):dateStr
     };});
 }
@@ -1282,10 +1284,11 @@ function parseRosen(wb,dateStr,bulk){
   const iUnidItem=colIdx(h,'Unidades Ítem')??25,iEntItem=colIdx(h,'Unidades Entregadas Ítem')??26;
   const iEstItem=colLike(h,'estado del ítem')??colLike(h,'estado del item');
   const iFcMax=colLike(h,'compromiso má'),iFcMin=colLike(h,'compromiso mí');
+  const iDir=colIdx(h,'Dirección')??colLike(h,'direcci');   // dirección (para reportes/export JSON)
   return d.slice(1).filter(r=>cs(r[iOrden])).map(r=>({
     orden:cs(r[iOrden]),cliente:cs(r[iCliente])||'Rosen',nodo:nrNode(r[iGrupo],r[iRegion]),
     fuente:'rosen',estado:normE(r[iEstado]),subestado:cs(r[iMotivo]),
-    region:cs(r[iRegion])||cs(r[iComuna]),volumen:cn(r[iUnidades]),peso:0,
+    region:cs(r[iRegion])||cs(r[iComuna]),direccion:iDir!=null?cs(r[iDir]):'',comuna:cs(r[iComuna]),volumen:cn(r[iUnidades]),peso:0,
     codItem:cs(r[iCodItem]),descItem:cs(r[iDescItem]),ped:cn(r[iUnidItem]),ent:cn(r[iEntItem]),
     estadoItem:iEstItem!=null?normE(r[iEstItem]):'',
     fechaMin:iFcMin!=null?fmtDateCell(r[iFcMin]):'',fechaMax:iFcMax!=null?fmtDateCell(r[iFcMax]):'',
@@ -1570,10 +1573,7 @@ function renderSummaryCards(){
     const recRows=recAll.filter(r=>r.nodo===nodo&&r.estado==='Ingresado al sistema');
     const desRows=desAll.filter(r=>r.nodo===nodo);
     const hasAny=recRows.length||desRows.length;
-    if(!hasAny){
-      el.innerHTML=hdr+'<div class="sc-nodata">Sin datos'+(nodo==='R_SERENA'?' — pendiente':'')+'</div>';
-      return;
-    }
+    if(!hasAny){el.style.display='none';return;}   // auto-ocultar: operación sin datos en el período no se muestra
     const recVol=recRows.reduce((s,r)=>s+r.volumen,0);
     const {enDespacho:scED,enStock:scES}=getStockSets();
     const nED=recRows.filter(r=>scED.has(r.orden)).length;
@@ -1626,7 +1626,7 @@ function renderRecNodesTable(recRows){
   let html='';
   NODES.filter(n=>n.startsWith('C')).forEach(nodo=>{
     const nr=rows.filter(r=>r.nodo===nodo);
-    if(!nr.length){html+=`<tr><td class="node-name-cell">${nodo}</td><td colspan="7" style="color:#adb5bd;padding:14px 16px">Sin datos</td></tr>`;return;}
+    if(!nr.length)return;   // auto-ocultar: nodo sin datos en el período no se muestra
     const total=nr.length;
     const vol=nr.reduce((s,r)=>s+r.volumen,0),peso=nr.reduce((s,r)=>s+r.peso,0);
     const nEnDespacho=nr.filter(r=>enDespacho.has(r.orden)).length;
@@ -1691,7 +1691,7 @@ function renderDesNodesTable(desRows){
     const {enDespacho:edR,enStock:esR}=getStockSets();
     rBody.innerHTML=NODES.filter(n=>n.startsWith('C')).map(nodo=>{
       const nr=recRows.filter(r=>r.nodo===nodo);
-      if(!nr.length)return`<tr><td class="node-name-cell">${nodo}</td><td colspan="5" style="color:#adb5bd">Sin datos</td></tr>`;
+      if(!nr.length)return'';   // auto-ocultar: nodo sin datos no se muestra
       const total=nr.length,nED=nr.filter(r=>edR.has(r.orden)).length,nES=nr.filter(r=>esR.has(r.orden)).length;
       const vol=nr.reduce((s,r)=>s+r.volumen,0),peso=nr.reduce((s,r)=>s+r.peso,0);
       return`<tr>
@@ -1722,7 +1722,7 @@ function renderDesNodesTable(desRows){
   // Antes ambas recibían 7 celdas → la del Resumen quedaba descuadrada. Ahora cada una recibe lo suyo.
   const buildRows=(withPar)=>nodosCliente().map(nodo=>{
     const nr=rows.filter(r=>r.nodo===nodo);
-    if(!nr.length)return`<tr><td class="node-name-cell">${nodo}</td><td colspan="${withPar?6:5}" style="color:#adb5bd;padding:14px 16px">Sin datos</td></tr>`;
+    if(!nr.length)return'';   // auto-ocultar: nodo sin datos no se muestra
     const total=nr.length;
     const ent=nr.filter(r=>r.estado==='Entregado').length;
     const noE=nr.filter(r=>r.estado==='No entregado').length;
