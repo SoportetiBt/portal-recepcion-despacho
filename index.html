@@ -541,9 +541,12 @@ table.files-table tr:last-child td{border-bottom:none}
           <option value="Entregado">Entregado</option>
           <option value="No entregado">No entregado</option>
           <option value="Entrega parcial">Entrega parcial</option>
+          <option value="Pendiente">Pendiente</option>
+          <option value="Ingresado al sistema">Ingresado al sistema</option>
           <option value="Devuelto al mandante">Devuelto al mandante</option>
           <option value="Extraviado">Extraviado</option>
         </select>
+        <select class="f-sel" id="fsel-all-subestado" onchange="renderAllTable()" title="Filtrar por subestado / motivo"><option value="">Todos los subestados</option></select>
         <select class="f-sel" id="fsel-all-compdesde" onchange="renderAllTable()" title="Fecha de compromiso desde"><option value="">Compr. desde</option></select>
         <select class="f-sel" id="fsel-all-comphasta" onchange="renderAllTable()" title="Fecha de compromiso hasta"><option value="">Compr. hasta</option></select>
         <button class="btn btn-outline btn-sm" onclick="exportExcel('all')" title="Baja a Excel exactamente lo que está filtrado">⬇ Excel</button>
@@ -970,9 +973,11 @@ const ESTADO_CSS={'Entregado':'b-ent','No entregado':'b-no','Entrega parcial':'b
 // Estados "terminales" que un admin puede fijar a mano (#15/#17). Sacan la orden de "en stock".
 const ESTADOS_EDITABLES=['Entregado','No entregado','Entrega parcial','Devuelto al mandante','Extraviado'];
 const ESTADOS_CIERRE=['Entregado','Entrega parcial','Devuelto al mandante','Extraviado']; // ya resueltas → no son stock pendiente
-// Estados que NO son última milla → se excluyen del NIVEL DE SERVICIO (efectividad). Son gestión de bodega, no despacho.
-const ESTADOS_FUERA_SERVICIO=['Devuelto al mandante','Extraviado'];
-const esServicioUM=r=>ESTADOS_FUERA_SERVICIO.indexOf(r.estado)<0;   // true si la orden cuenta para el nivel de servicio
+// NIVEL DE SERVICIO (efectividad): SOLO cuentan los resultados reales de última milla.
+// Se excluyen Devuelto al mandante y Extraviado (gestión de bodega) Y también Pendiente / Ingresado / Bodega RM
+// (no son un resultado de despacho del día; si hay que cerrarlos, se hace a mano como No entregado).
+const ESTADOS_SERVICIO=['Entregado','No entregado','Entrega parcial'];
+const esServicioUM=r=>ESTADOS_SERVICIO.indexOf(r.estado)>=0;   // true si la orden cuenta para el nivel de servicio
 const NODO_CSS={'C_RM':'b-crm','C_VIÑA':'b-cvina','R_VIÑA':'b-rvina','R_SERENA':'b-rser'};
 const CHART_ESTADOS=['Entregado','No entregado','Entrega parcial','Ingresado al sistema'];
 const CHART_COLORS=['#002E5D','#FF6600','#E0A800','#9ca3af'];
@@ -1558,6 +1563,14 @@ function updateCompromisoOptions(){
     if(!cdates.includes(cur))sel.value='';
   });
 }
+// Puebla el filtro de SUBESTADO del Detalle con los subestados reales presentes (según el cliente activo), preservando lo elegido.
+function updateSubestadoOptions(){
+  const sel=document.getElementById('fsel-all-subestado');if(!sel)return;
+  const subs=[...new Set(getAllRows().map(r=>cs(r.subestado)).filter(s=>s&&s!=='—'))].sort();
+  const cur=sel.value;
+  sel.innerHTML='<option value="">Todos los subestados</option>'+subs.map(s=>`<option value="${s}"${s===cur?' selected':''}>${s}</option>`).join('');
+  if(!subs.includes(cur))sel.value='';
+}
 
 // ════════════════════════════════════════════
 // SUMMARY CARDS
@@ -1853,13 +1866,14 @@ function estBadge(e){return badge(e,ESTADO_CSS[e]||'b-pen')}
 function nodoBadge(n){return badge(n,NODO_CSS[n]||'')}
 function fuente(f){return{troncal:'Troncal',um:'Última Milla',rosen:'Rosen',manual:'✎ Manual'}[f]||f}
 
-function filterRows(rows,search,nodo,estado,fuente2){
+function filterRows(rows,search,nodo,estado,fuente2,subest){
   // Soporta PEGAR varios códigos: se parte por espacios/coma/punto y coma/saltos y matchea CUALQUIERA (OR).
   const toks=(search||'').toLowerCase().split(/[\s,;]+/).filter(Boolean);
   return rows.filter(r=>{
     if(!matchGF(r))return false;
     if(nodo&&r.nodo!==nodo)return false;
     if(estado&&r.estado!==estado)return false;
+    if(subest&&r.subestado!==subest)return false;
     if(fuente2&&r.fuente!==fuente2)return false;
     if(toks.length){
       const o=(r.orden||'').toLowerCase(),c=(r.cliente||'').toLowerCase(),g=(r.region||'').toLowerCase();
@@ -1964,9 +1978,10 @@ function renderAllTable(){
   const fNodo=document.getElementById('fsel-all-nodo').value;
   const fEstado=document.getElementById('fsel-all-estado').value;
   const fMod=document.getElementById('fsel-all-modulo').value;
+  const fSub=fval('fsel-all-subestado');
   const fCompD=fval('fsel-all-compdesde'),fCompH=fval('fsel-all-comphasta');
   if(!total){cnt.textContent='0 registros';tbody.innerHTML=`<tr class="empty-row-msg"><td colspan="13"><span>📂</span>Cargá archivos para ver el detalle de órdenes</td></tr>`;return;}
-  const hasFilter=!!(search||fNodo||fEstado||fMod||fCompD||fCompH)||gfActive();
+  const hasFilter=!!(search||fNodo||fEstado||fMod||fSub||fCompD||fCompH)||gfActive();
   // #7: no renderizar las miles de órdenes por defecto; recién al filtrar/buscar.
   if(!hasFilter){
     cnt.textContent=fmtNum(total)+' en total';
@@ -1974,7 +1989,7 @@ function renderAllTable(){
     return;
   }
   const cm=getCompromisoMap();
-  let rows=doSort(filterRows(getAllRows(),search,fNodo,fEstado,fMod),sortState.all.col,sortState.all.dir,allKeys);
+  let rows=doSort(filterRows(getAllRows(),search,fNodo,fEstado,fMod,fSub),sortState.all.col,sortState.all.dir,allKeys);
   // Filtro por fecha de COMPROMISO (una sola = día exacto; ambas = rango), por orden.
   if(fCompD||fCompH){
     rows=rows.filter(r=>{const c=cm[r.orden]||'';if(!c)return false;
@@ -2191,8 +2206,8 @@ function exportExcel(which){
     name='despacho';
   }else{
     const search=document.getElementById('src-all').value,fNodo=document.getElementById('fsel-all-nodo').value,
-      fEstado=document.getElementById('fsel-all-estado').value,fMod=document.getElementById('fsel-all-modulo').value;
-    rows=filterComp(doSort(filterRows(getAllRows(),search,fNodo,fEstado,fMod),sortState.all.col,sortState.all.dir,allKeys),cm,'all');
+      fEstado=document.getElementById('fsel-all-estado').value,fMod=document.getElementById('fsel-all-modulo').value,fSub=fval('fsel-all-subestado');
+    rows=filterComp(doSort(filterRows(getAllRows(),search,fNodo,fEstado,fMod,fSub),sortState.all.col,sortState.all.dir,allKeys),cm,'all');
     cols=[['N° Orden','orden'],['Cliente','cliente'],['Nodo','nodo'],['Módulo',r=>TIPO_LBL[r.fuente]||r.fuente],['Estado','estado'],
       ['Subestado','subestado'],['Región','region'],['Ítems',r=>r.items||1],['Volumen m³',r=>num(r.volumen)],['F. Compromiso',comp],
       ['Peso kg',r=>num(r.peso)],['Fecha dato',r=>fmtD(r.dateStr)],['Editado a mano',r=>r._edited?'Sí':'']];
@@ -2256,6 +2271,7 @@ function rebuildAll(){
   renderFilesTable();
   updateHeaderInfo();
   updateFechaOptions();
+  updateSubestadoOptions();
   updateCompromisoOptions();
   if(typeof computeRosen==='function')computeRosen();   // B6/B11: refresca Recepción Rosen (incluye cambios manuales)
   if(typeof renderStock==='function')renderStock();     // B12: refresca el módulo Stock unificado
