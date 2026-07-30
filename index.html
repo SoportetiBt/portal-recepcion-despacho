@@ -970,6 +970,9 @@ const ESTADO_CSS={'Entregado':'b-ent','No entregado':'b-no','Entrega parcial':'b
 // Estados "terminales" que un admin puede fijar a mano (#15/#17). Sacan la orden de "en stock".
 const ESTADOS_EDITABLES=['Entregado','No entregado','Entrega parcial','Devuelto al mandante','Extraviado'];
 const ESTADOS_CIERRE=['Entregado','Entrega parcial','Devuelto al mandante','Extraviado']; // ya resueltas → no son stock pendiente
+// Estados que NO son última milla → se excluyen del NIVEL DE SERVICIO (efectividad). Son gestión de bodega, no despacho.
+const ESTADOS_FUERA_SERVICIO=['Devuelto al mandante','Extraviado'];
+const esServicioUM=r=>ESTADOS_FUERA_SERVICIO.indexOf(r.estado)<0;   // true si la orden cuenta para el nivel de servicio
 const NODO_CSS={'C_RM':'b-crm','C_VIÑA':'b-cvina','R_VIÑA':'b-rvina','R_SERENA':'b-rser'};
 const CHART_ESTADOS=['Entregado','No entregado','Entrega parcial','Ingresado al sistema'];
 const CHART_COLORS=['#002E5D','#FF6600','#E0A800','#9ca3af'];
@@ -1578,11 +1581,12 @@ function renderSummaryCards(){
     const {enDespacho:scED,enStock:scES}=getStockSets();
     const nED=recRows.filter(r=>scED.has(r.orden)).length;
     const nES=recRows.filter(r=>scES.has(r.orden)).length;
-    const desTotal=desRows.length;
-    const desEnt=desRows.filter(r=>r.estado==='Entregado').length;
-    const desNo=desRows.filter(r=>r.estado==='No entregado').length;
-    const desPar=desRows.filter(r=>r.estado==='Entrega parcial').length;
-    const desPen=desRows.filter(r=>!['Entregado','No entregado','Entrega parcial'].includes(r.estado)).length;
+    const desSrv=desRows.filter(esServicioUM);   // nivel de servicio: excluye Devuelto/Extraviado (gestión de bodega)
+    const desTotal=desSrv.length;
+    const desEnt=desSrv.filter(r=>r.estado==='Entregado').length;
+    const desNo=desSrv.filter(r=>r.estado==='No entregado').length;
+    const desPar=desSrv.filter(r=>r.estado==='Entrega parcial').length;
+    const desPen=desSrv.filter(r=>!['Entregado','No entregado','Entrega parcial'].includes(r.estado)).length;
     const desPct=desTotal>0?desEnt/desTotal*100:0;
     el.innerHTML=hdr+`
       ${recRows.length?`
@@ -1721,8 +1725,9 @@ function renderDesNodesTable(desRows){
   //  - Despacho (tbody-des-nodes): 7 col, CON "Parciales".
   // Antes ambas recibían 7 celdas → la del Resumen quedaba descuadrada. Ahora cada una recibe lo suyo.
   const buildRows=(withPar)=>nodosCliente().map(nodo=>{
-    const nr=rows.filter(r=>r.nodo===nodo);
-    if(!nr.length)return'';   // auto-ocultar: nodo sin datos no se muestra
+    const nrAll=rows.filter(r=>r.nodo===nodo);
+    if(!nrAll.length)return'';   // auto-ocultar: nodo sin datos no se muestra
+    const nr=nrAll.filter(esServicioUM);   // nivel de servicio: sin Devuelto/Extraviado (gestión de bodega)
     const total=nr.length;
     const ent=nr.filter(r=>r.estado==='Entregado').length;
     const noE=nr.filter(r=>r.estado==='No entregado').length;
@@ -1755,7 +1760,7 @@ function renderCharts(desRows){
     if(charts[nodo]){charts[nodo].destroy();delete charts[nodo];}
     if(!esNodoDelCliente(nodo)){if(card)card.style.display='none';return;}   // gráfico del otro cliente: oculto
     if(card)card.style.display='';
-    const rows=desRows.filter(r=>r.nodo===nodo&&matchGF(r));
+    const rows=desRows.filter(r=>r.nodo===nodo&&matchGF(r)&&esServicioUM(r));   // nivel de servicio: sin Devuelto/Extraviado
     if(!rows.length){lEl.querySelector('.pct').textContent='—';return;}
     const total=rows.length;
     const cnt=Object.fromEntries(CHART_ESTADOS.map(e=>[e,0]));
